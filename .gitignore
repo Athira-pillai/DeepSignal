@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+backend/config.json
+backend/.env
+backend/tuning_config.json
