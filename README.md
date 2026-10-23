@@ -29,7 +29,7 @@ python -m venv .venv
 pip install -r requirements.txt
 copy .env.example .env   # Windows
 # cp .env.example .env   # macOS/Linux
-uvicorn main:app --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
 ```
 
 Set `NEWS_API_KEY` if you want News API results. If it is absent, the backend falls back to Yahoo Finance news supplied through yfinance.
