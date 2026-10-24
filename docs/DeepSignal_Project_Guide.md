@@ -57,8 +57,6 @@ The project does not require installing a local database server. Supabase is opt
 
 The React application and FastAPI service run as separate processes. In local development, Vite serves the web app on port 5173 and forwards `/api` requests to FastAPI on port 8000. The browser never imports or runs the Python model code directly.
 
-### Architecture diagram
-
 The colored boxes marked **MODEL** are the model/evidence components. XGBoost is drawn outside the ensemble because it is an optional comparison model, not a voting component.
 
 ```mermaid
@@ -137,6 +135,32 @@ flowchart LR
 7. `backend/hybrid.py` combines the four compatible inputs using the fixed versioned weights. Thresholds turn the combined score into a signal.
 8. The backend creates an accompanying rule-based backtest report, attaches data and model metadata, and persists the prediction when configured.
 9. React renders the result and adds the prediction to the browser's signal history.
+
+```mermaid
+BACKEND_PIPELINE_DIAGRAM
+flowchart TB
+    Request[React requests /api/predict with ticker and display horizon]
+    Request --> Market[Fetch adjusted daily OHLCV from Yahoo Finance]
+    Market --> Provenance[Normalize dates, record as-of time, hash input window]
+    Provenance --> Prepare[Build pandas indicators and next-session labels]
+    Headlines[NewsAPI when configured, then Yahoo news fallbacks] --> FinBERT[FinBERT scores up to 8 current titles]
+    Prepare --> LSTM[LSTM: ordered seven-column sequence, scaler, P up]
+    Prepare --> Forest[Random Forest: nine tabular price/volume features, P up]
+    Prepare --> Rules[Technical alignment, momentum, RSI/MACD score]
+    LSTM --> Hybrid[Versioned weighted score and signal thresholds]
+    Forest --> Hybrid
+    FinBERT --> Hybrid
+    Rules --> Hybrid
+    Hybrid --> Response[JSON response with evidence, dates, output, model version]
+    Response --> Dashboard[Analysis and Models pages render output]
+    Response --> BackendHistory[Prediction and signal record: Supabase or local JSON]
+    LSTM -. matching fitted model and scaler .-> Artifact[Local versioned artifact registry]
+    Forest -. matching fitted estimator .-> Artifact
+    Backtest[Separate close-signal / next-open technical backtest] --> BacktestReport[Experiment report: Supabase or local JSON]
+    Scheduler[Separate scheduled data refresh] --> Bars[Bars and job summaries: migration 002 tables or local JSON]
+```
+
+The pipeline view expands the deployment architecture into the request-time sequence. The trained estimators produce direction evidence, while FinBERT and technical rules contribute independent inputs before the hybrid. Persistence and browser state are separate outputs.
 
 ### Two distinct meanings of “saved”
 
@@ -236,6 +260,21 @@ Indicators are computed in pandas; TA-Lib is not required.
 
 Rolling indicators need a warm-up period. Rows with missing or infinite required feature values are excluded from model fitting.
 
+### Backend data preparation, in execution order
+
+The prediction path is orchestrated in `backend/main.py` by `build_prediction`. It normalizes the ticker, obtains daily bars, records retrieval time and the last bar date, hashes the raw input window, and computes or reuses technical features. It then gathers current headlines, scores them, creates next-session labels for historical rows, and invokes the LSTM and Random Forest paths. The latest feature row is inference input: its next-session target is unknown and is not used as a training label.
+
+`download_history` asks yfinance for auto-adjusted daily bars and normalizes the date column to UTC before removing the timezone for internal calculations. The returned frame contains date, open, high, low, close, and volume. The input fingerprint is SHA-256 over those ordered bar values and is attached to the prediction so the exact source window can be identified later. `indicators` derives rolling and exponential calculations from close and volume. Early rows naturally lack some rolling values; the model paths remove rows missing required inputs. Infinite percentage changes are converted to missing values rather than passed to estimators.
+
+The label is aligned to the row that makes the decision: `target[t] = 1` if `close[t+1] > close[t]`; otherwise it is 0 (down or unchanged). Thus the feature vector at row *t* contains information available through that close, while its label refers to the next trading observation. This is why the most recent row can be scored for inference but cannot contribute a known label. The live backend uses the current headline aggregate as a request-level sentiment value; it does not reconstruct historical news for every training row.
+
+There are two model input matrices because the model families consume different representations:
+
+- **LSTM sequence input:** ordered `close`, `sma20`, `sma50`, `rsi`, `macd`, `bb_upper`, `bb_lower`; each sample is a sliding window of the most recent `lookback` rows. `MinMaxScaler` transforms those columns. The latest sequence produces one sigmoid value in [0, 1].
+- **Random Forest tabular input:** `return_1d`, `return_5d`, `sma20_gap`, `sma50_gap`, `rsi`, `macd`, `macd_signal`, `bb_position`, and `volume_change`. It consumes one row at a time and does not scale the values. Although `sentiment` exists in the general feature frame, it is deliberately excluded from the forest input; sentiment has its own FinBERT component in the hybrid.
+
+After these model outputs are ready, the backend computes explicit technical evidence from the latest row, maps it to a 0–1 value, and sends the four compatible values into `backend/hybrid.py`. The API response preserves the raw market dates, component values, weights, weighted contributions, signal rule, feature importance, optional SHAP values, model comparison, and model-version ID. React formats these fields; it does not train or alter the models.
+
 ## 5. Prediction models and the hybrid signal
 
 ### Target definition
@@ -258,13 +297,19 @@ TensorFlow/Keras builds a binary sequence classifier. The live model uses the or
 
 The scaler is saved with the fitted LSTM artifact. In the live training path it is fit on the available feature window before the sequence validation split; therefore the reported validation behavior is not a fully untouched chronological test. If TensorFlow is missing/incompatible or there are too few sequences, LSTM probability falls back to 0.5 and metadata records why.
 
+Each sample is one `lookback × 7` array and its label is the following close-direction value. The backend requires at least 80 sequences. It uses the earlier portion for fitting and a trailing validation slice for early stopping; the split point is `max(floor(85% of samples), sample_count - 40)`, so validation is at least roughly 15% until the 40-row cap applies. It restores the best validation weights. A saved matching LSTM and scaler bypass refitting and transform only the latest sequence for inference. A neutral 0.5 fallback is an explicit availability path, not a learned result.
+
 ### Random Forest
 
 The forest is a scikit-learn `RandomForestClassifier` with a default of 250 trees, maximum depth 7, minimum leaf size 4, balanced class weights, and seed 42. It uses `return_1d`, `return_5d`, moving-average gaps, RSI, MACD and signal, Bollinger position, and volume change. No scaling is applied. With enough labeled data, a trailing chronological holdout is scored first; then a separate forest is refit on all available labeled rows for the current inference. With fewer than 100 usable rows, the component returns 0.5 and reports insufficient samples.
 
+The live holdout is the latest 20% where possible, with at least 20 test rows and at least 80 earlier fitting rows. The holdout accuracy is descriptive metadata; the inference model is a newly fitted forest using all rows whose next-session label is known. The latest unlabeled row is held aside for the actual score. Feature importance is the forest's impurity-based feature importance, which describes split usage in this fitted forest and is not a causal explanation.
+
 ### Optional XGBoost and SHAP
 
 When XGBoost imports and fits successfully, the backend scores it on the Random Forest comparison window, then refits it for an up probability. The comparison uses 180 estimators, depth 4, learning rate 0.05, row/column subsampling of 0.85, log-loss, and seed 42. XGBoost is guarded as optional; failures do not stop the main prediction. It is not included in hybrid weights. SHAP is also attempted for the latest Random Forest input; when unavailable or failing, its explanation is omitted/empty. Random Forest feature importance is separately returned.
+
+FinBERT is different from the locally fitted estimators: it is a pretrained text classifier loaded lazily through Transformers. The backend asks it for positive, negative, and neutral label scores for each of up to eight titles; for each title it computes positive minus negative, then averages the title scores. Its neutral label is not added to the formula. No headlines or an import/inference error produces score 0 and allows price-based components to proceed. Headlines and sentiment accompany the API response; they are not persisted as a separate training corpus.
 
 ### Explicit hybrid rule
 
@@ -280,6 +325,8 @@ hybrid up score =
 
 The sentiment mapping is a simple, documented proxy, not a calibrated probability. Technical rules add/subtract fixed points, clip the result to [-1, +1], then map it to [0, 1]. The score and its component inputs, weights, and contributions are returned for inspection.
 
+In the technical component, bullish alignment (`close > SMA20 > SMA50`) adds 0.45; bearish alignment subtracts 0.45. A five-day return above +2% adds 0.25 and below -2% subtracts 0.25. RSI below 35 with MACD above its signal adds 0.30; RSI above 65 with MACD below its signal subtracts 0.30. The sum is clipped to [-1, 1], then converted to a probability-like value using `(score + 1) / 2`. These are hand-authored rules and fixed point sizes, not fitted coefficients.
+
 | Combined score | Signal |
 |---:|---|
 | 0.64 or higher | Strong Buy |
@@ -294,9 +341,32 @@ The dashboard's saved-signal card presents the simpler BUY/HOLD/SELL wording and
 
 The displayed confidence-like number is derived from distance of the combined score from 0.5. It is not a calibrated probability, confidence interval, or percentage chance of profit. The `predicted_change` figure is a separate heuristic based on the combined score, recent 5-day return, and square-root horizon scaling. It is not an output of a regression model and is not a price target. Selecting 1W/1M/3M does not change the model's next-session classification target.
 
+### What the prediction output contains
+
+The `GET /api/predict/{symbol}` response is a structured record rather than a single label. Its main fields have distinct purposes:
+
+| Output | How the backend creates it | How the UI uses it |
+|---|---|---|
+| `stock_symbol`, `company_name` | Normalized ticker; `company_name` in this prediction payload is initially the ticker placeholder. The frontend resolves a display name separately through `/api/company/{symbol}`. | Labels the selected security, using the separate lookup when available. |
+| `market_data`, `as_of`, `latest_close` | Source, interval, last market timestamp, retrieval time, date range, row count, and SHA-256 of the exact bar window. | Shows what data the result is based on and its freshness. |
+| `lstm_probability_up`, `classifier_probability_up` | Latest sequence score and latest-row forest score. | Supports component comparison and evidence. |
+| `sentiment_score`, `news` | FinBERT signed title scores and up to eight scored titles. | Displays current headline evidence and sentiment. |
+| `signal_explanation` | Hybrid score, target, version, weights, each component's value and contribution, and technical factors. | Powers the evidence panel and makes the rule auditable. |
+| `signal_type`, `predicted_trend`, `confidence` | Thresholded hybrid score and distance-from-neutral display. | Headline signal and confidence-style presentation. |
+| `predicted_change` | Separate horizon-scaled heuristic, not a price-regression model. | Displays an estimated directional change figure with interpretation limits. |
+| `technical_indicators`, `feature_importance`, `model_comparison` | Latest indicators, forest importances, holdout comparison and optional SHAP. | Feeds indicator cards and Models/Analysis explanation panels. |
+| `model_version` | Deterministic identity for ticker, exact data window, code/configuration, features, and installed package set. | Identifies which saved fitted artifact matched this prediction. |
+| `backtest`, `risk_factors`, `analysis_summary` | Separate technical strategy report and explanatory text. | Adds historical context and limitations; backtest is not the hybrid's simulated return. |
+
+Once model construction and inference complete, the API tries to save the result. A storage write failure is returned as a `persistence.status=failed` field while the computed prediction is still returned. This lets the UI show a result while making its save status explicit.
+
 ## 6. Saved model artifacts and versioning
 
 `backend/model_registry.py` writes fitted model artifacts under `backend/model_artifacts/` by default (or `DEEPSIGNAL_ARTIFACT_DIR` if configured). It stores a deterministic version identity based on ticker, exact market-data SHA-256 fingerprint and date window, target, ordered feature lists, preprocessing/feature/model-code versions, hybrid version, tuning configuration, sentiment model name, random seeds, and installed package versions.
+
+Each artifact directory contains JSON metadata plus whichever fitted files were actually captured: a Random Forest estimator, optional XGBoost estimator, LSTM Keras model, and LSTM scaler. The metadata records data window/hash, target, feature order and input shape, hyperparameters, package versions, validation status/metrics, model statuses, and inference explanation metadata. The directory is written through a temporary path and atomically renamed to avoid a partially written version. Loading verifies the metadata identity, expected files, model/scaler dimensions, and Random Forest feature order before putting the bundle into the process cache. The version is an identity hash, not a claim that model quality improved.
+
+The full identity includes the complete price-window hash and configuration. Since the hash changes when the downloaded window changes, matching is exact and a new version is usually created after new market bars arrive. FinBERT's pretrained weights are managed by the Hugging Face cache rather than this registry. The registry is for reproducibility and reuse on the same machine; metadata in Supabase does not upload the binary files.
 
 When the same complete identity is requested again, the backend can load the saved model, scaler, and metadata instead of fitting again. If the market data window or identity changes, a different version is created. Saved LSTM, Random Forest, and available XGBoost estimators, the LSTM scaler, and optional Keras model are written as an artifact bundle with JSON metadata; the loader checks identifiers, expected files, input shape, and feature order. A bounded in-process loaded-model cache holds recent versions. Older artifacts are retained for rollback; they are local files, not automatically uploaded to Supabase.
 
@@ -384,6 +454,23 @@ The backend persists:
 - **Scheduled market bars:** daily OHLCV bars and computed feature JSON for configured tickers, after migration 002 is installed.
 - **Background job runs:** scheduler status and details, after migration 002 is installed.
 
+Each record exists to answer a different operational or research question:
+
+| Stored record | Reason to retain it | Important boundary |
+|---|---|---|
+| Market-data run metadata | Identify the provider, date range, input row count, retrieval time, quality status, and hash that underpinned a prediction. | The live prediction path stores metadata; it does not upload every historical OHLCV row into this table. |
+| Prediction | Reopen prior backend outputs and compare ticker, signal, horizon, model version, input window, score, and response. | Backend history is separate from the browser's local signal cards. |
+| Signal | Maintain a queryable, prediction-linked signal record with its hybrid version and reason. | It is descriptive output storage; there is no order execution or risk-control engine. |
+| Experiment | Preserve a backtest/evaluation run with parameters, metrics, dates, data hash, and assumptions for later inspection or comparison. | It stores the report and provenance, not a guarantee of future behavior. |
+| Scheduled bars and features | Retain refreshable OHLCV and derived feature snapshots for configured symbols, keyed by symbol/interval/date. | Only the background refresh writes these rows; migration 002 is required. |
+| Job run | Explain whether a scheduled refresh succeeded, partially failed, or failed, how many rows it processed, and per-ticker errors. | Job state is a persisted summary; the scheduler itself still runs in one backend process. |
+| Model artifact files | Reuse a fitted estimator and scaler when the complete model identity matches; record enough metadata to inspect the build. | Files remain local unless manually backed up; Supabase stores identifiers/records, not these binaries. |
+| Tuning configuration | Keep user-selected model and simulation parameters across backend restarts. | Stored in local `backend/tuning_config.json`, not in the Supabase schema. |
+| Backend cache | Avoid repeating provider and feature work during a process lifetime. | Temporary and cleared when the backend restarts. |
+| Browser `localStorage` | Keep selected ticker, theme, and up to 100 UI signal snapshots on that browser. | Device/browser-specific; not synchronized with backend prediction history. |
+
+In Supabase, `market_data_runs` is the provenance record referenced by `predictions`; `predictions` holds the result; `signals` has a one-to-one foreign-key link to that result; and `experiments` holds evaluation/backtest report payloads. Migration 002 adds `market_data_bars` (unique by symbol, interval, timestamp) and `background_job_runs`. These are not interchangeable stores: model files are local, the TTL cache is ephemeral, and UI history lives in the browser.
+
 Tables for predictions/signals/market-data runs/experiments are in `backend/sql/001_persistent_storage.sql`. Scheduler tables are in `backend/sql/002_market_data_scheduler.sql`. Both migrations are run in the Supabase Dashboard SQL Editor. They enable row-level security, revoke public/anonymous/authenticated access, and grant the backend service role the intended table access. The secret key belongs only in the backend environment; do not put it in frontend code or commit it.
 
 Without Supabase, local fallbacks include `prediction_runs.json`, `evaluation_runs.json`, `backtest_runs.json`, `market_data_bars.json`, and `job_runs.json` under `backend/`. They are local and ignored by Git. Tuning config and model artifacts are also local. The frontend's browser signal history is separate from all these backend stores.
@@ -429,42 +516,113 @@ Interactive API docs are available at `http://localhost:8000/docs` while the bac
 
 ```text
 DeepSignal/
-├── backend/
-│   ├── main.py                 FastAPI routes, prediction orchestration, features and model calls
-│   ├── hybrid.py               Direction target, hybrid version, weights and probability fusion
-│   ├── model_registry.py        Artifact identity, persistence, validation and loading
-│   ├── evaluation.py           Chronological model evaluation report
-│   ├── backtesting.py          Timestamp-aware portfolio simulation engine
-│   ├── scheduler.py            Background daily market-data refresh
-│   ├── cache.py                Bounded in-process TTL cache
-│   ├── database.py             Supabase REST and local JSON persistence
-│   ├── requirements.txt        Backend runtime dependencies
-│   ├── requirements-dev.txt    Runtime plus test client dependency
-│   ├── .env.example            Safe settings template
-│   ├── sql/
-│   │   ├── 001_persistent_storage.sql
-│   │   └── 002_market_data_scheduler.sql
-│   └── tests/                  Focused unittest suite
-├── frontend/
-│   ├── package.json            React/Vite dependencies and commands
-│   ├── package-lock.json       Locked frontend dependency graph
-│   ├── vite.config.js          Vite dev server and API proxy
-│   ├── index.html              Browser app entry document
-│   └── src/
-│       ├── main.jsx            Pages, shared ticker state, API calls, UI logic
-│       ├── Charts.jsx          Reusable Recharts components
-│       └── styles.css          Themes, layouts, responsive UI and component styles
-├── docs/
-│   └── DeepSignal_Project_Guide.md  This complete project reference
-├── tools/
-│   └── build_project_guide_pdf.py  Rebuilds the guide PDF with Python only
-├── run_backend.bat             Windows backend setup/launcher
-├── run_frontend.bat            Windows frontend dependency check/launcher
-├── README.md                   Quick overview and common setup instructions
-└── .gitignore                  Excludes environments, secrets and generated artifacts
+|-- backend/
+|   |-- main.py                 FastAPI routes, prediction orchestration, features and model calls
+|   |-- hybrid.py               Direction target, hybrid version, weights and probability fusion
+|   |-- model_registry.py        Artifact identity, persistence, validation and loading
+|   |-- evaluation.py            Chronological model evaluation report
+|   |-- backtesting.py           Timestamp-aware portfolio simulation engine
+|   |-- scheduler.py             Background daily market-data refresh
+|   |-- cache.py                 Bounded in-process TTL cache
+|   |-- database.py              Supabase REST and local JSON persistence
+|   |-- requirements.txt         Backend runtime dependencies
+|   |-- requirements-dev.txt     Runtime plus test client dependency
+|   |-- .env.example             Safe settings template
+|   |-- sql/
+|   |   |-- 001_persistent_storage.sql
+|   |   `-- 002_market_data_scheduler.sql
+|   `-- tests/                   Focused unittest suite
+|-- frontend/
+|   |-- package.json
+|   |-- package-lock.json
+|   |-- vite.config.js
+|   |-- index.html
+|   `-- src/
+|       |-- main.jsx             Pages, shared ticker state, API calls, UI logic
+|       |-- Charts.jsx           Reusable Recharts components
+|       `-- styles.css           Themes, layouts, responsive UI and component styles
+|-- docs/
+|   `-- DeepSignal_Project_Guide.md  This complete project reference
+`-- tools/
+    `-- build_project_guide_pdf.py  Rebuilds the guide PDF with Python only
 ```
 
 Generated directories such as `backend/.venv`, `frontend/node_modules`, `frontend/dist`, `backend/model_artifacts`, local environment files, and local run histories are not source files and are ignored by Git.
+
+### File-by-file responsibilities
+
+The tree above is the quick map. This inventory describes the maintained source and configuration files individually; generated environments, downloaded model weights, caches, and local run-history JSON are runtime data and are intentionally not listed as source.
+
+#### Repository-level files
+
+| File | Responsibility |
+|---|---|
+| `README.md` | Short project overview, local setup, first prediction, evaluation, backtesting, and Supabase/scheduler guidance. The detailed behavior reference is this guide. |
+| `.gitignore` | Excludes virtual environments, installed frontend packages, build output, secrets, local configuration, reports, and fitted artifacts from version control. |
+| `.gitattributes` | Repository text-file and line-ending conventions. |
+| `.vscode/settings.json` | Workspace editor preferences for contributors using Visual Studio Code. |
+| `run_backend.bat` | Windows helper that checks Python, creates the backend virtual environment if needed, copies the safe environment template when absent, installs runtime requirements, and launches Uvicorn on port 8000. |
+| `run_frontend.bat` | Windows helper that checks npm, installs locked frontend dependencies when needed, and starts the Vite development server. |
+
+#### Backend Python modules
+
+| File | Responsibility |
+|---|---|
+| `backend/main.py` | FastAPI application and route definitions; ticker normalization; Yahoo price and company lookups; indicator construction; news collection and FinBERT scoring; LSTM/forest inference and optional comparison; prediction orchestration; tuning configuration; scheduler lifecycle hooks. This is the service composition layer. |
+| `backend/hybrid.py` | Defines the next-session-up target contract, hybrid version and component weights; validates probabilities; maps sentiment and produces the auditable weighted result and signal category. |
+| `backend/model_registry.py` | Creates stable model identities and version IDs; writes and validates local artifact bundles; restores compatible estimators/scalers; maintains a bounded loaded-model cache. |
+| `backend/evaluation.py` | Builds chronological train, validation, and final test windows; compares direction models and baselines on common dates; produces metrics, hashes, assumptions, and a persisted experiment report. |
+| `backend/backtesting.py` | Implements the separate timestamp-aware technical strategy; executes orders at the next open; accounts for costs/slippage, cash, shares, equity, baselines, trades, and performance metrics. |
+| `backend/database.py` | Storage adapter for optional Supabase Postgres over HTTPS and local JSON fallback; persists predictions, signals, experiments, market bars, and scheduler status. |
+| `backend/cache.py` | Bounded, thread-safe in-process TTL cache and cache/provider timing counters. It does not share state between backend processes. |
+| `backend/scheduler.py` | Starts/stops the background refresh thread; fetches configured symbols, validates and feature-engineers bars, retries failures, persists data, and reports job status. |
+
+#### Backend configuration and database schema
+
+| File | Responsibility |
+|---|---|
+| `backend/requirements.txt` | Runtime Python packages needed by the API and its supported model/data paths. |
+| `backend/requirements-dev.txt` | Development/test dependency additions on top of runtime requirements. |
+| `backend/.env.example` | Safe template for optional provider keys, Supabase settings, cache/scheduler controls, artifact path, and CORS origins. It contains no live secret. |
+| `backend/sql/001_persistent_storage.sql` | Creates the core Supabase tables and access policies for prediction and experiment persistence. |
+| `backend/sql/002_market_data_scheduler.sql` | Adds scheduled market-bar and refresh-job persistence used by the background scheduler. |
+
+#### Backend test files
+
+| File | Responsibility |
+|---|---|
+| `backend/tests/test_validation.py` | Checks health/prediction response shapes, signal boundaries, tuning validation/persistence, provider absence, and graceful optional-model failure behavior. |
+| `backend/tests/test_routes.py` | Guards route declaration ordering so fixed history routes are not captured by the dynamic ticker route. |
+| `backend/tests/test_hybrid.py` | Verifies weighted component arithmetic, audit fields, invalid-input rejection, and shared evaluation comparisons. |
+| `backend/tests/test_model_registry.py` | Verifies artifact identity changes and reloading compatible artifacts in a clean process. |
+| `backend/tests/test_backtesting.py` | Verifies next-open order timing, portfolio accounting, and cost/slippage reporting. |
+| `backend/tests/test_database.py` | Checks local JSON persistence/readback and Supabase request/upsert behavior, including symbol filtering and backend-only secret headers. |
+| `backend/tests/test_cache.py` | Checks TTL expiration, copy protection, and avoiding repeated provider calls for cached price history. |
+| `backend/tests/test_scheduler.py` | Checks configured ticker selection and refresh validation/persistence summaries. |
+
+The focused tests also exercise evaluation through its shared hybrid comparison logic; there is no separate `test_evaluation.py` file. The full suite is invoked from the repository root with `python -m unittest discover -s backend/tests -v`.
+
+#### Frontend files
+
+| File | Responsibility |
+|---|---|
+| `frontend/package.json` | Declares React/Vite dependencies and frontend scripts. |
+| `frontend/package-lock.json` | Locks the resolved npm dependency tree for reproducible installation. |
+| `frontend/vite.config.js` | Configures the Vite development server and proxies `/api` requests to the backend. |
+| `frontend/index.html` | Browser document shell and React mount point. |
+| `frontend/src/main.jsx` | Application entry point: routing, shared ticker/theme state, API helpers, page components, prediction display, local signal history, dashboard and user interactions. |
+| `frontend/src/Charts.jsx` | Lazy-loadable reusable Recharts panels used for historical and comparative visualizations. |
+| `frontend/src/styles.css` | Theme tokens, page layout, cards, navigation, chart presentation, responsive behavior, and interaction styling. |
+
+#### Documentation and PDF tooling
+
+| File | Responsibility |
+|---|---|
+| `docs/DeepSignal_Project_Guide.md` | Canonical long-form reference for implemented behavior, architecture, APIs, setup, persistence, evaluation, dashboard, and limitations. |
+| `tools/build_project_guide_pdf.py` | Dependency-free Markdown-to-PDF renderer used to create the styled, searchable guide at `docs/DeepSignal_Project_Guide.pdf`, including tables and a vector architecture diagram. |
+| `tools/generate_project_guide_pdf.py` | Compatibility entry point that delegates to the canonical builder, so either PDF command produces the same document. |
+
+> **Inventory note:** This guide intentionally does not enumerate ignored machine-local files such as `backend/.env`, tuning overrides, downloaded model weights, virtual environments, node_modules, or generated run-history JSON. They can contain secrets, large data, or machine-specific state and are not part of the shared source tree.
 
 ## 12. Run the project
 

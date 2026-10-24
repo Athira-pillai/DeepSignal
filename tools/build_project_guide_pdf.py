@@ -22,9 +22,29 @@ def plain(text: str) -> str:
     text = text.replace("**", "").replace("__", "")
     text = text.replace("`", "").replace("*", "")
     text = html.unescape(text)
+    text = clean_text(text)
     return (text.replace("→", "->").replace("←", "<- ")
             .replace("↔", "<->").replace("—", "- ").replace("–", "-")
             .replace("≥", ">=").replace("≤", "<=").replace("±", "+/-"))
+
+
+def clean_text(text: str) -> str:
+    """Replace unsupported glyphs and common UTF-8-as-legacy mojibake."""
+    replacements = {
+        "\u00e2\u2020\u2019": "->", "\u00e2\u2020\u0090": "<-", "\u00e2\u2020\u201d": "<->",
+        "\u00e2\u20ac\u201d": "-", "\u00e2\u20ac\u201c": "-",
+        "\u00e2\u20ac\u0153": '"', "\u00e2\u20ac\u009d": '"',
+        "\u00e2\u20ac\u02dc": "'", "\u00e2\u20ac\u2122": "'",
+        "\u00e2\u20ac\u00a6": "...", "\u00e2\u02c6\u2019": "-",
+        "\u00c2\u00b1": "+/-", "\u00c2\u00b7": "-",
+        "\u2192": "->", "\u2190": "<-", "\u2194": "<->",
+        "\u2014": "-", "\u2013": "-", "\u2022": "-", "\u00b7": "-",
+        "\u00d7": "x", "\u2265": ">=", "\u2264": "<=", "\u00b1": "+/-",
+        "\u00a0": " ",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    return text
 
 
 def text_width(text: str, size: float, mono: bool = False) -> float:
@@ -84,7 +104,7 @@ def parse_markdown(source: str) -> list[tuple]:
                 content.append(lines[i])
                 i += 1
             i += 1
-            blocks.append(("diagram",) if language == "mermaid" else ("code", "\n".join(content)))
+            blocks.append(("diagram", "\n".join(content)) if language == "mermaid" else ("code", "\n".join(content)))
             continue
         if stripped.startswith("|") and i + 1 < len(lines) and lines[i + 1].strip().startswith("|"):
             rows = []
@@ -114,7 +134,10 @@ def parse_markdown(source: str) -> list[tuple]:
         bullet = re.match(r"^[-*]\s+(.+)$", stripped)
         numbered = re.match(r"^(\d+)\.\s+(.+)$", stripped)
         if bullet or numbered:
-            blocks.append(("list", "bullet" if bullet else "number", plain((bullet or numbered).group(1))))
+            # For ordered Markdown, group(1) is the source ordinal. Preserve
+            # the actual item text from group(2), then number items at render time.
+            item_text = bullet.group(1) if bullet else numbered.group(2)
+            blocks.append(("list", "bullet" if bullet else "number", plain(item_text)))
             i += 1
             continue
         paragraph = [stripped]
@@ -144,7 +167,7 @@ class PDFDocument:
 
     @staticmethod
     def _safe_bytes(value: str) -> bytes:
-        return value.encode("cp1252", errors="replace")
+        return clean_text(value).encode("cp1252", errors="replace")
 
     @classmethod
     def _pdf_string(cls, value: str) -> str:
@@ -196,7 +219,8 @@ class PDFDocument:
             self.y -= 30
             size, font, color, gap = 24, "F2", (19, 49, 85), 12
         elif level == 2:
-            self.ensure(40)
+            # Keep a section heading with enough room for its first paragraph.
+            self.ensure(80)
             self.y -= 11
             size, font, color, gap = 15, "F2", (27, 67, 117), 7
         else:
@@ -267,16 +291,12 @@ class PDFDocument:
         }.get(columns, [1 / columns] * columns)
         widths = [CONTENT_W * p for p in proportions]
         size, leading, pad = 7.6, 10.1, 4.5
-        for row_index, row in enumerate(rows):
+        def draw_row(row, row_index):
             wrapped = []
             for col in range(columns):
                 cell = plain(row[col]) if col < len(row) else ""
                 wrapped.append(wrap(cell, widths[col] - 2 * pad, size))
             height = max(1, max(len(lines) for lines in wrapped)) * leading + 2 * pad
-            if self.y - height < BOTTOM:
-                self.new_page()
-                if row_index > 0:
-                    self.y -= 3
             bottom = self.y - height
             self.rect(LEFT, bottom, CONTENT_W, height,
                       (23, 62, 112) if row_index == 0 else ((244, 247, 251) if row_index % 2 == 0 else (255, 255, 255)),
@@ -292,6 +312,16 @@ class PDFDocument:
                               line, size, font, color)
                 x += widths[col]
             self.y = bottom
+
+        for row_index, row in enumerate(rows):
+            wrapped = [wrap(plain(row[col]) if col < len(row) else "", widths[col] - 2 * pad, size) for col in range(columns)]
+            height = max(1, max(len(lines) for lines in wrapped)) * leading + 2 * pad
+            if self.y - height < BOTTOM:
+                self.new_page()
+                if row_index > 0:
+                    draw_row(rows[0], 0)
+                    self.y -= 3
+            draw_row(row, row_index)
         self.y -= 8
 
     def rule(self):
@@ -380,9 +410,62 @@ class PDFDocument:
         self.text(LEFT + 14, y - 68, cap, 7.3, "F1", (78, 93, 113))
         self.y = y - 82
 
+    def prediction_pipeline(self):
+        self.new_page()
+        self.heading(3, "Prediction request: backend processing and output")
+        x, width, y = LEFT, CONTENT_W, self.y
+        self.diagram_box(x + 62, y, width - 124, 43, (246, 248, 252), (105, 122, 145),
+                         "1 · API request", "GET /api/predict/{symbol}?timeframe=... · normalize ticker", (25, 44, 69), "CLIENT → SERVICE")
+        self.arrow(PAGE_W / 2, y - 43, PAGE_W / 2, y - 54)
+        y -= 60
+        self.diagram_box(x + 24, y, width - 48, 48, (239, 246, 253), (74, 125, 182),
+                         "2 · Source data and provenance", "Yahoo auto-adjusted daily OHLCV · current headlines · UTC market date · SHA-256 window fingerprint", (25, 65, 108), "PROVIDER INPUT")
+        self.arrow(PAGE_W / 2, y - 48, PAGE_W / 2, y - 60)
+        y -= 66
+        self.diagram_box(x + 24, y, width - 48, 50, (239, 246, 253), (74, 125, 182),
+                         "3 · Prepare features and labels", "pandas indicators · remove missing/infinite model rows · next-close direction labels · latest row stays unlabeled", (25, 65, 108), "DATA PREPARATION")
+        self.arrow(PAGE_W / 2, y - 50, PAGE_W / 2, y - 63)
+        y -= 70
+        group_h = 112
+        self.rect(x + 8, y - group_h, width - 16, group_h, (250, 252, 255), (160, 174, 194), 1.2)
+        self.text(PAGE_W / 2 - 57, y - 15, "4 · COMPONENT OUTPUTS", 8.0, "F2", (56, 76, 101))
+        gap, card_w, card_h = 8, (width - 52) / 4, 64
+        labels = [
+            ("LSTM", "30 × 7 sequence\nP(up)", (229, 241, 255), (42, 117, 196)),
+            ("Random Forest", "tabular row\nP(up)", (229, 241, 255), (42, 117, 196)),
+            ("FinBERT", "headlines\nsentiment", (229, 241, 255), (42, 117, 196)),
+            ("Technical rules", "indicators\nscore", (245, 247, 251), (110, 129, 154)),
+        ]
+        start_x = x + 22
+        for index, (title, detail, fill, stroke) in enumerate(labels):
+            self.diagram_box(start_x + index * (card_w + gap), y - 27, card_w, card_h, fill, stroke,
+                             title, detail.replace("\n", " · "), (25, 44, 69), "40%" if index < 2 else "10%")
+        self.arrow(PAGE_W / 2, y - group_h, PAGE_W / 2, y - group_h - 13)
+        hybrid_top = y - group_h - 22
+        self.diagram_box(x + 42, hybrid_top, width - 84, 47, (222, 247, 236), (23, 133, 104),
+                         "5 · Versioned weighted hybrid", "0.40 LSTM + 0.40 forest + 0.10 mapped sentiment + 0.10 technical score", (18, 105, 81), "SIGNAL RULE")
+        self.arrow(PAGE_W / 2, hybrid_top - 47, PAGE_W / 2, hybrid_top - 59)
+        out_top = hybrid_top - 67
+        half, end_gap = (width - 20) / 2, 20
+        self.diagram_box(x, out_top, half, 52, (246, 248, 252), (105, 122, 145),
+                         "6 · JSON response → dashboard", "signal · evidence · date · chart fields · comparison and explanation", (25, 44, 69), "DISPLAY")
+        self.diagram_box(x + half + end_gap, out_top, half, 52, (248, 246, 239), (138, 120, 82),
+                         "7 · Save result and provenance", "Supabase when configured · otherwise backend JSON; save status returned", (91, 77, 49), "PERSISTENCE")
+        self.arrow(PAGE_W / 2, hybrid_top - 47, x + half / 2, out_top + 4)
+        self.arrow(PAGE_W / 2, hybrid_top - 47, x + half + end_gap + half / 2, out_top + 4)
+        self.text(LEFT + 8, out_top - 66,
+                  "Separate stores: fitted model files stay local · cache is temporary · browser signals stay in localStorage · backtest uses its own technical strategy.",
+                  7.4, "F1", (78, 93, 113))
+        self.y = out_top - 82
+
     def add_block(self, block, number):
         kind = block[0]
         if kind == "heading":
+            # The prediction flow is a nine-step list immediately followed by
+            # a full-page diagram. Start it on a fresh page so its final steps
+            # are not stranded alone before the diagram's intentional break.
+            if block[2] == "Main request flow: prediction":
+                self.new_page()
             self.heading(block[1], block[2])
         elif kind == "paragraph":
             self.paragraph(block[1])
@@ -397,7 +480,10 @@ class PDFDocument:
         elif kind == "rule":
             self.rule()
         elif kind == "diagram":
-            self.architecture()
+            if "BACKEND_PIPELINE_DIAGRAM" in block[1]:
+                self.prediction_pipeline()
+            else:
+                self.architecture()
 
     def save(self, path: Path):
         self.pages.append(self.page)
