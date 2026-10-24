@@ -1,630 +1,658 @@
-# DeepSignal: Hybrid Stock Trend Prediction — Complete Project and Proposal Guide
+# DeepSignal — Complete Project Guide
 
-> A detailed, plain-language guide to the application, its architecture, its model pipeline, how it compares with the supplied proposal, and how to run it on another computer.
+This guide describes the application as it exists in this repository: its architecture, pages, data flow, models, evaluation and backtesting, persistence, scheduled work, setup, APIs, and limitations. It is intended to be the main technical and user-facing reference for the project.
 
-Prepared: 20 October 2026  
-Project type: Local full-stack research prototype  
-Main technologies: React, Vite, FastAPI, Python, pandas, scikit-learn, TensorFlow/Keras, Hugging Face Transformers
-Source documents: current project source code and `Improved_Hybrid_Stock_Prediction_Proposal.pdf`
+> **Purpose:** DeepSignal is an educational stock-analysis and machine-learning research prototype. It does not place trades, provide financial advice, or guarantee a prediction or return. Market data from Yahoo Finance can be delayed, incomplete, or unavailable.
 
-## 01. Executive summary
+## Contents
 
-DeepSignal is a local web application for exploring recent stock data and producing an experimental directional signal. A user enters a stock ticker in the Analysis page. The browser sends a request to a Python API. The API downloads recent market history, calculates technical indicators, looks for financial news, optionally scores news with FinBERT, runs the LSTM and Random Forest components, blends the evidence, and returns a response. The browser displays the result, charts, news headlines, indicators, and the factors behind the signal.
+1. [At a glance](#1-at-a-glance)
+2. [System architecture](#2-system-architecture)
+3. [User interface and workflows](#3-user-interface-and-workflows)
+4. [Market data, news, and features](#4-market-data-news-and-features)
+5. [Prediction models and the hybrid signal](#5-prediction-models-and-the-hybrid-signal)
+6. [Saved model artifacts and versioning](#6-saved-model-artifacts-and-versioning)
+7. [Evaluation and backtesting](#7-evaluation-and-backtesting)
+8. [Caching and scheduled market-data updates](#8-caching-and-scheduled-market-data-updates)
+9. [Persistence and database design](#9-persistence-and-database-design)
+10. [API reference](#10-api-reference)
+11. [Project layout](#11-project-layout)
+12. [Run the project](#12-run-the-project)
+13. [Configuration](#13-configuration)
+14. [Validation and troubleshooting](#14-validation-and-troubleshooting)
+15. [Security, privacy, and boundaries](#15-security-privacy-and-boundaries)
+16. [Current limitations and future work](#16-current-limitations-and-future-work)
+17. [Glossary](#17-glossary)
 
-The application is designed as a research and learning project. Its output is an estimate generated from historical data and simplified rules. It is not a brokerage system, does not place trades, and does not guarantee future returns. A Buy label does not mean a stock will rise, and a Hold label does not mean its price will remain unchanged.
+## 1. At a glance
 
-The main parts are:
+DeepSignal is a local full-stack web app. The browser provides the dashboard and analysis pages. A Python API fetches market data, engineers features, runs model components, combines their evidence, and returns a JSON result. The app can optionally use a hosted Supabase database for online history; without it, the backend writes supported records to local JSON files.
 
-- A React frontend with Dashboard, Analysis, Backtest, Models, Tuning, Signals, Research, and Settings pages.
-- A FastAPI backend that exposes JSON endpoints to the frontend.
-- Yahoo Finance history and news as the primary data sources, with optional NewsAPI integration.
-- Technical indicators calculated from OHLCV history.
-- An LSTM binary classifier, a Random Forest classifier, optional XGBoost comparison, and optional FinBERT sentiment.
-- A weighted decision rule that converts model evidence into Buy, Sell, or Hold.
-- A separate rule-based backtest, a browser-local signal history, and persisted tuning settings.
+### Main capabilities
 
-## 02. What the application does
+- Select a ticker from saved signal history or type a new symbol. The shared ticker control appears on Dashboard, Analysis, Backtest, and Models. It displays a company name from a small built-in list or looks one up through Yahoo Finance.
+- Display daily OHLCV market history, a candlestick chart, technical indicators, recent headlines, sentiment, feature importance, and signal evidence.
+- Estimate next-session up/down direction with an explicit weighted hybrid of LSTM, Random Forest, FinBERT sentiment, and technical rules.
+- Show Buy, Sell, or Hold signals, including the stronger Buy/Sell variants in the backend response.
+- Compare models on a chronological holdout and run a separate reproducible chronological evaluation.
+- Run a rule-based, next-open backtest with transaction fees, slippage, portfolio tracking, and baselines.
+- Save versioned fitted model artifacts and enough metadata to identify the data, preprocessing, configuration, software versions, and target used.
+- Periodically refresh and persist daily bars and technical features in a lightweight background thread.
+- Store cache, job, model, prediction, and experiment status for inspection through API routes.
+
+### Main technologies
+
+| Area | Technology |
+|---|---|
+| Browser UI | React, React Router, Vite, Recharts, Lucide icons, CSS |
+| HTTP API | FastAPI, Uvicorn, Pydantic |
+| Data handling | Python, pandas, NumPy, yfinance, requests |
+| Models | TensorFlow/Keras LSTM, scikit-learn Random Forest, Hugging Face FinBERT |
+| Optional comparison/explanation | XGBoost, SHAP |
+| Hosted persistence | Supabase Postgres through its HTTPS REST API |
+
+The project does not require installing a local database server. Supabase is optional. The backend's local JSON fallback works without it.
+
+## 2. System architecture
+
+The React application and FastAPI service run as separate processes. In local development, Vite serves the web app on port 5173 and forwards `/api` requests to FastAPI on port 8000. The browser never imports or runs the Python model code directly.
+
+### Architecture diagram
+
+The colored boxes marked **MODEL** are the model/evidence components. XGBoost is drawn outside the ensemble because it is an optional comparison model, not a voting component.
+
+```mermaid
+flowchart LR
+    Person([User]) --> Browser
+
+    subgraph UI[Browser application]
+        Browser[React UI<br/>Dashboard · Analysis · Backtest · Models<br/>Tuning · Signals · Research · Settings]
+        Local[(Browser localStorage<br/>selected ticker · theme · saved signals)]
+        Browser <--> Local
+    end
+
+    Browser -->|HTTP / JSON: /api/...| Vite[Vite dev server<br/>port 5173 · /api proxy]
+    Vite -->|HTTP| API[FastAPI service<br/>port 8000]
+
+    subgraph DATA[Data retrieval and preparation]
+        API --> History[yfinance<br/>daily OHLCV and company lookup]
+        API --> News[NewsAPI if configured<br/>Yahoo Finance news fallback]
+        History --> Features[pandas feature engineering<br/>clean, order, label, indicators]
+        News --> HeadlineInput[Recent headline text]
+    end
+
+    subgraph MODELS[MODEL COMPONENTS — explicit roles]
+        direction[Target: next session close<br/>above current close]
+        Features --> LSTM[MODEL · LSTM<br/>time-ordered feature sequences<br/>up-direction probability]
+        Features --> RF[MODEL · Random Forest<br/>tabular indicators and returns<br/>up-direction probability]
+        HeadlineInput --> FinBERT[MODEL · FinBERT<br/>positive / negative / neutral<br/>headline sentiment score]
+        Features --> Rules[TECHNICAL EVIDENCE<br/>moving-average alignment<br/>5-day momentum · RSI/MACD rules]
+        Features --> XGB[OPTIONAL MODEL · XGBoost<br/>holdout comparison only]
+        LSTM --> Hybrid[VERSIONED HYBRID<br/>40% LSTM · 40% RF<br/>10% mapped sentiment · 10% technical]
+        RF --> Hybrid
+        FinBERT --> Hybrid
+        Rules --> Hybrid
+        direction -. defines .-> LSTM
+        direction -. defines .-> RF
+        direction -. defines .-> Hybrid
+    end
+
+    Hybrid --> Signal[Buy / Hold / Sell signal<br/>score · evidence · metadata]
+    XGB -. reports comparison .-> Signal
+    API --> Backtest[Separate backtest engine<br/>timestamped rules · next-open fills<br/>costs · slippage · portfolio metrics]
+    Signal --> Browser
+    Backtest --> Browser
+
+    subgraph ASYNC[Background work]
+        Scheduler[In-process scheduler<br/>startup refresh + configured interval]
+        Scheduler --> History
+        Scheduler --> Features
+    end
+
+    API --> Cache[(Bounded in-process TTL cache<br/>market data · features · company names)]
+    Scheduler --> Storage
+    API --> Storage[(Supabase REST / Postgres<br/>or local JSON fallback)]
+    API --> Artifacts[(Local model_artifacts folder<br/>versioned fitted estimators and scalers)]
+    Hybrid --> Artifacts
+    Artifacts --> Hybrid
+
+    classDef model fill:#173b67,stroke:#54a6ff,stroke-width:3px,color:#ffffff;
+    classDef optional fill:#45315f,stroke:#c49aff,stroke-width:2px,color:#ffffff;
+    classDef hybrid fill:#124d42,stroke:#39d6a0,stroke-width:4px,color:#ffffff;
+    classDef service fill:#202a3b,stroke:#8292ad,stroke-width:1px,color:#f5f7fb;
+    class LSTM,RF,FinBERT model;
+    class XGB optional;
+    class Hybrid hybrid;
+    class API,Features,Rules,Signal,Backtest,Scheduler,History,News,HeadlineInput,Vite,Browser service;
+```
+
+### Main request flow: prediction
+
+1. A user selects or types a ticker and chooses a forecast display horizon on Analysis.
+2. React sends `GET /api/predict/{symbol}?timeframe=...` to FastAPI.
+3. FastAPI normalizes the symbol and gets adjusted daily OHLCV history from Yahoo Finance through `yfinance`.
+4. The service hashes the exact downloaded window and calculates indicators. It builds a next-session-up training target from adjacent closes.
+5. It retrieves recent headlines from NewsAPI when configured and then Yahoo Finance sources as needed. FinBERT scores up to eight headlines; unavailable news/model output falls back to neutral sentiment.
+6. LSTM and Random Forest independently produce probabilities for the same directional target. XGBoost may provide a separate holdout comparison. Technical rules produce a fourth evidence value.
+7. `backend/hybrid.py` combines the four compatible inputs using the fixed versioned weights. Thresholds turn the combined score into a signal.
+8. The backend creates an accompanying rule-based backtest report, attaches data and model metadata, and persists the prediction when configured.
+9. React renders the result and adds the prediction to the browser's signal history.
+
+### Two distinct meanings of “saved”
+
+- **Saved signals in the UI:** Stored in the current browser's `localStorage`. This is what the ticker dropdown and Signals page use. It does not require Supabase and is not synchronized between browsers.
+- **Backend prediction/history records:** Saved through Supabase when configured, otherwise to backend JSON. These can be read from `/api/history/predictions`; the UI signal list does not currently import that backend history automatically.
+
+## 3. User interface and workflows
+
+The app uses React Router. All pages share a selected ticker state. The selected ticker is retained in browser local storage, so changing pages does not reset it.
+
+### Shared ticker picker and company name
+
+Dashboard, Analysis, Backtest, and Models share the same ticker control. It contains a text input with a datalist of Apple and tickers found in locally saved signals. The user can choose a suggestion or type another ticker. Typing is normalized to uppercase.
+
+The company name appears beside the input, outside the ticker box. A short built-in map covers common symbols; other valid-looking symbols are looked up by `GET /api/company/{symbol}` after a short pause in typing. The backend caches successful names for one day and lookup misses for 30 minutes. If Yahoo cannot supply a name, the UI says the company name is unavailable. The lookup is a convenience and does not validate that a ticker has usable historical prices.
+
+### Header and appearance
+
+- The theme button switches between light and dark themes. The selected theme is saved in browser local storage.
+- The small **Live** badge means the interface can refresh status/data periodically. It does **not** mean exchange-level real-time prices. Its tooltip explains that status refresh is periodic and prices use the latest available daily data.
+- Layout, charts, cards, ticker fields, tables, and navigation are styled for desktop and smaller screens. The navigation collapses on mobile. The charts are lazy-loaded to reduce the initial UI bundle.
 
 ### Dashboard
 
-The Dashboard shows summary cards for saved signals and a selectable market chart. The chart selector includes Apple by default and tickers found in locally saved signals. Selecting a ticker requests three months of daily market history from the backend. It then displays a candlestick chart, latest price, period change, RSI, MACD, average volume, and a simple price-momentum gauge.
+Shows browser-saved signal counts, buy/sell counts, average saved confidence, and the data source. The market card lets the user pick a ticker, then loads approximately three months of daily history and displays a candlestick chart, latest available price, period change, indicators, and a directional price-momentum gauge.
 
-The Dashboard's Buy/Sell counts and latest signals come from predictions saved in the current browser. They are not a shared account-wide database. Opening the site in another browser or clearing browser storage will not carry those saved signals over.
+Below the gauge, the **Latest Saved Signal** panel shows the most recently saved Buy/Hold/Sell-style result for that selected ticker, confidence when available, and its saved time. It does not infer a Buy or Sell from the gauge. If the browser has no saved signal for that ticker, it links to Analysis to generate one. This means a prediction saved on another browser or only in backend history will not appear in this panel.
+
+Dashboard market history refreshes when the selected ticker changes and then periodically while the page is open. A separate status poll reads `/api/jobs/market-data`. Those refreshes do not make the underlying daily price feed real-time.
 
 ### Analysis
 
-The Analysis page accepts a ticker and one of four horizons: 1D, 1W, 1M, or 3M. It requests a prediction and displays the latest available close and date, signal badge, trend, heuristic predicted change, FinBERT sentiment score, confidence-like score, backtest chart, technical indicators, recent news, risk notes, feature importance, and signal evidence.
+Select a ticker, choose 1D, 1W, 1M, or 3M, and run Analyze. The result includes:
 
-The chosen horizon changes the displayed predicted-change calculation. The LSTM is still trained to classify next-day direction; selecting 1M does not retrain it as a one-month forecasting model.
+- signal, trend, latest close and market date;
+- estimated direction score, confidence-style display, and a heuristic predicted-change figure;
+- an evidence panel showing component probability, weight, and contribution;
+- the feature importance and available SHAP explanation;
+- technical indicators and recent news/sentiment;
+- an accompanying historical chart and risk/interpretation notes.
+
+The underlying classifier target is always **next-session direction**. The selected horizon changes only the separate predicted-change heuristic; it does not train a 1-week or 1-month price model. Running a new analysis saves/replaces the same ticker+horizon item in browser history, retaining up to 100 signals.
 
 ### Backtest
 
-The Backtest page requests historical data for a ticker and displays the backend's strategy curve beside buy-and-hold and a flat naive baseline. It also reports total return, Sharpe ratio, and maximum drawdown. The strategy is currently a momentum-and-RSI rule. It is separate from the LSTM/Random Forest signal ensemble; the chart's Hybrid label should not be interpreted as a historical simulation of the exact Analysis signal.
+Runs a separate technical momentum/RSI strategy over historical bars, then displays the strategy curve beside buy-and-hold and no-trade. Metrics include return, CAGR, Sharpe, drawdown, exposure, turnover, and executed trades. It is **not** a simulation of the live hybrid prediction signal.
 
 ### Models
 
-The Models page describes the major model families and requests a fresh prediction for a ticker. It can show Random Forest and optional XGBoost holdout results, the chronological holdout window, balanced accuracy, and SHAP values where available.
+Shows the model families and invokes a prediction to display model comparison data, chronological holdout dates, feature importance, and SHAP values if available. Random Forest and optional XGBoost holdout results are shown when returned. LSTM validation metadata is recorded in its saved artifact; the Models page's primary comparison report should not be mistaken for the dedicated `/api/evaluate` experiment.
 
 ### Tuning
 
-The Tuning page saves configuration to the backend. The settings control LSTM lookback length, LSTM units, LSTM epochs, Random Forest tree count, transaction cost, and slippage. The backend validates the values and writes them to `backend/tuning_config.json`. New model requests and backtests use those settings.
+Loads and saves backend settings for LSTM lookback, LSTM units, epochs, Random Forest tree count, transaction-cost percentage, and slippage percentage. The backend validates ranges and writes settings to `backend/tuning_config.json`. The prediction and backtest services read this shared process configuration.
 
 ### Signals
 
-The Signals page lists saved Analysis results in the browser's local storage. A prediction is saved when the user runs Analyze. A newer result for the same ticker and horizon replaces that saved item. Up to 100 items are kept.
+Lists prediction results saved by the current browser. The user can clear this browser's signal history. Clearing it does not delete backend/Supabase prediction records.
 
 ### Research and Settings
 
-Research summarizes the intended workflow and model families. Settings shows the frontend's local API path and a reminder about backend CORS configuration. The theme selector in the header switches between light and dark mode and remembers the choice in browser storage.
+Research summarizes the workflow and methodology. Settings describes the local `/api` path and deployment CORS configuration; it does not expose or edit secrets.
 
-## 03. System architecture
-
-The frontend and backend are separate programs that run at the same time during development. The browser does not import Python code. It communicates with FastAPI over HTTP using JSON.
-
-```text
-+-------------------------+       HTTP / JSON       +--------------------------+
-| React + Vite frontend   |  --------------------->  | FastAPI backend          |
-| http://localhost:5173   |  <---------------------  | http://localhost:8000    |
-|                         |       response           |                          |
-| Dashboard, Analysis,    |                          | routes, data, features,  |
-| Backtest, Models, etc.  |                          | models, scoring          |
-+-------------------------+                          +-------------+------------+
-                                                                     |
-                          +------------------------------------------+----------------+
-                          |                         |                 |                |
-                          v                         v                 v                v
-                    Yahoo Finance             NewsAPI (optional)   FinBERT       ML libraries
-                    prices/news               Yahoo news fallback  sentiment     TensorFlow,
-                    via yfinance / HTTP                                           sklearn, XGBoost
-```
-
-The Vite development server proxies requests beginning with `/api` to port 8000. This lets frontend code call a same-origin path such as `/api/predict/AAPL`, while Vite forwards the request to FastAPI.
-
-### Request lifecycle for an analysis
-
-1. The user enters a ticker and selects a horizon.
-2. React calls `GET /api/predict/{symbol}?timeframe=...`.
-3. FastAPI validates the horizon and calls the prediction builder.
-4. The backend normalizes the ticker and downloads daily price/volume history.
-5. It calculates indicators and creates next-day direction labels for historical rows.
-6. It gathers news through configured NewsAPI, Yahoo's search feed, and yfinance fallback.
-7. FinBERT scores up to eight headlines, if its model is available.
-8. The LSTM and Random Forest components generate direction probabilities. The Random Forest is evaluated on a chronological holdout before being refit on all labeled data for today's probability.
-9. Technical evidence and the sentiment score are converted to a normalized component score. The four weighted components produce one combined score.
-10. The score is mapped to a signal label. The API returns data, components, explanation, and a backtest.
-11. React renders the response and saves the signal to browser local storage.
-
-## 04. Project files and responsibilities
-
-```text
-DeepSignal/
-|-- backend/
-|   |-- main.py                    FastAPI routes, indicators, data, models, scoring
-|   |-- requirements.txt           Backend runtime dependencies
-|   |-- requirements-dev.txt       Runtime dependencies plus HTTP test client
-|   |-- .env.example               Example environment settings
-|   |-- tuning_config.json         Created when tuning settings are saved
-|   `-- tests/
-|       `-- test_validation.py     Offline automated validation tests
-|-- frontend/
-|   |-- package.json               Frontend scripts and packages
-|   |-- vite.config.js             Vite server and /api proxy
-|   `-- src/
-|       |-- main.jsx               React pages and UI behavior
-|       `-- styles.css             Layout, components, responsive and theme styles
-|-- README.md                      Short setup and project overview
-`-- docs/
-    `-- DeepSignal_Project_Guide.md This guide's editable source
-```
-
-`frontend/node_modules` and Python virtual environment folders contain installed packages. They are generated locally and are not source code. The `.env` file can contain secrets and should remain local; use `.env.example` as a template.
-
-## 05. Market data and news
+## 4. Market data, news, and features
 
 ### Price history
 
-The `download_history` function uses yfinance to request adjusted daily data. It asks for Open, High, Low, Close, and Volume (OHLCV), normalizes the date column, removes incomplete rows, and returns a pandas DataFrame. Analysis normally requests three years. History and dashboard routes use shorter selectable periods.
+`download_history` requests Yahoo Finance auto-adjusted daily OHLCV bars: open, high, low, close, volume. It normalizes dates, sorts/cleans data, and rejects empty or malformed results. Prediction normally uses a multi-year data window; dashboard history requests three months, while history/evaluation endpoints allow specified periods. Yahoo Finance is an external provider, not a guaranteed feed. U.S. symbols are usually plain tickers (for example `AAPL`); Yahoo uses suffix conventions for some markets (for example `RELIANCE.NS`). A symbol must be recognized by Yahoo and have usable data.
 
-Ticker syntax is supplied to Yahoo Finance. U.S. tickers are commonly plain symbols such as `AAPL` or `MSFT`. Indian NSE symbols commonly use the `.NS` suffix, for example `RELIANCE.NS` or `TCS.NS`. Yahoo Finance coverage and symbol conventions can change, and a valid ticker can still return no data.
+The prediction response distinguishes `market_timestamp`/`as_of` (date of last market bar) from `retrieved_at`/`prediction_timestamp` (when the backend fetched or produced the result). A recent retrieval time does not mean the underlying bar is from the current minute.
 
-Prices are fetched when a request runs. The project does not keep a market-price database or cache the downloaded history between requests. The `as_of` field identifies the last market bar returned by the provider, which may be delayed or reflect the last trading session rather than the current moment.
+### Company-name lookup
 
-### News collection
+`GET /api/company/{symbol}` calls yfinance ticker metadata and returns `symbol`, `company_name`, and `found`. It accepts a restricted ticker-character set and caches the result. Built-in frontend names can be displayed without calling the lookup endpoint. Company metadata is not a substitute for successful price-history validation.
 
-NewsAPI is optional. If `NEWS_API_KEY` is set, the backend first tries its Everything endpoint. When the key is absent, invalid, rate limited, or the response contains too few stories, the backend tries Yahoo's finance search endpoint and then `yfinance.Ticker(symbol).news`. It normalizes headlines, dates, publisher names, and links, removes duplicate titles, and limits sentiment work to eight headlines.
+### News collection and FinBERT input
 
-If every provider fails or returns no articles, the API returns an empty news list. Prediction can continue with a neutral sentiment input. News coverage can be incomplete, late, unrelated to a ticker, or unavailable because of provider/network limits.
+If `NEWS_API_KEY` exists, the backend first tries the NewsAPI Everything endpoint. If fewer than eight headlines were collected or that provider fails, it can add Yahoo Finance search results and then yfinance ticker news. It filters empty/duplicate titles and returns at most eight headlines for sentiment scoring. Provider/network failures are tolerated; prediction continues with an empty or partial news list.
 
-## 06. Feature engineering and indicators
+The default sentiment model is `ProsusAI/finbert` from Hugging Face Transformers; `FINBERT_MODEL` can override it. The first use may download model weights into the local Transformers cache and consume disk, memory, and network bandwidth. FinBERT analyzes headline text and returns positive probability minus negative probability, producing a signed score approximately in [-1, +1]. No articles or model failure yields neutral sentiment (0). FinBERT is pretrained; it is not trained from this project's stock history.
 
-The backend builds technical features from the close and volume columns. The calculations use pandas; TA-Lib is not required.
+### Technical features
 
-- **SMA 20 / SMA 50:** the average closing price over 20 or 50 daily observations. A price above both, with the 20-day average above the 50-day average, is treated as an aligned bullish condition in the technical contribution.
-- **RSI 14:** a momentum oscillator derived from rolling average gains and losses. The implementation uses rolling 14-observation average gain/loss. Low values can indicate recent weakness; high values can indicate strong recent gains. RSI alone does not prove a reversal.
-- **MACD:** the 12-period exponential moving average minus the 26-period exponential moving average. The MACD signal line is a 9-period exponential moving average of MACD.
-- **Bollinger Bands:** the 20-day SMA plus or minus two rolling standard deviations. `bb_position` estimates where the close lies between the lower and upper bands.
-- **One-day and five-day return:** percentage change in close over one or five trading observations.
-- **SMA gaps:** close divided by an SMA minus one. This expresses distance from the moving average as a proportion.
-- **Volume change:** percentage change in volume from the previous observation.
-- **Sentiment:** one aggregate FinBERT score is attached to the historical rows for the current prediction request.
+Indicators are computed in pandas; TA-Lib is not required.
 
-Rolling calculations need enough history. Early rows contain missing indicator values and are excluded from relevant model training. Infinite values from division are replaced with missing values before model fitting.
+| Feature | Meaning |
+|---|---|
+| SMA 20 / SMA 50 | Rolling averages of adjusted daily closing prices. |
+| RSI 14 | Rolling gain/loss momentum indicator. Extreme values are clues, not guaranteed reversals. |
+| MACD / signal | EMA(12) minus EMA(26), with an EMA(9) signal line. |
+| Bollinger bands | SMA(20) plus/minus two rolling standard deviations. |
+| `return_1d`, `return_5d` | Change in close over one or five trading observations. |
+| `sma20_gap`, `sma50_gap` | Close relative to the corresponding average. |
+| `bb_position` | Close position relative to lower/upper Bollinger bands. |
+| `volume_change` | Change in volume from the preceding observation. |
+| `sentiment` | Current request's aggregate headline sentiment. |
 
-## 07. The model components
+Rolling indicators need a warm-up period. Rows with missing or infinite required feature values are excluded from model fitting.
 
-### LSTM direction model
+## 5. Prediction models and the hybrid signal
 
-The LSTM is a recurrent neural network implemented with TensorFlow/Keras. It reads a sequence of recent feature rows and produces one number between zero and one: the model's estimated probability that the next close is higher than the current close. It is a direction classifier, not a model that outputs a future dollar price.
+### Target definition
 
-The sequence contains close, SMA 20, SMA 50, RSI, MACD, and Bollinger upper/lower values. The default lookback is 30 observations. The default network has 48 LSTM units, a dropout layer, a 16-unit dense layer, and a sigmoid output. It uses binary cross-entropy and Adam. Early stopping can restore weights from the best validation epoch. Lookback, unit count, and epoch count can be changed on the Tuning page.
+The classifier target is 1 when the next trading session's adjusted close is above the current session's adjusted close, otherwise 0. The decision convention is after the current session close; the outcome is measured at the next session close. It is a **direction** target, not a future dollar-price prediction.
 
-The newest 40 training sequences are generally reserved for validation. The current implementation fits the scaler before this split, so information from the later period influences the scaling range. This is one reason to treat reported outputs as experimental and to consider moving all preprocessing inside each training fold in a future evaluation improvement.
+### Model roles
 
-If TensorFlow cannot be imported, the LSTM component returns 0.5, a neutral probability. This lets the rest of the pipeline continue, but the result then has no directional contribution from the LSTM.
+| Component | Role in the live hybrid | Inputs / output |
+|---|---|---|
+| **LSTM** | 40% of the hybrid | Sequence of recent price/indicator rows; probability of next-session up direction. |
+| **Random Forest** | 40% of the hybrid | Tabular returns, gaps, RSI, MACD, Bollinger position, volume change; probability of up direction. |
+| **FinBERT** | 10% of the hybrid after mapping | Recent headline text; positive-minus-negative sentiment, mapped to a 0–1 proxy. |
+| **Technical rules** | 10% of the hybrid | Moving-average alignment, 5-day return threshold, and RSI/MACD conditions; mapped to a 0–1 score. |
+| **XGBoost** | Not in the hybrid | Optional separate model comparison and probability; its result does not vote in the final signal. |
 
-### Random Forest classifier
+### LSTM
 
-The Random Forest is a collection of decision trees from scikit-learn. Each tree votes on whether the next close is higher. The backend uses features for one-day and five-day return, SMA gaps, RSI, MACD and signal line, Bollinger position, volume change, sentiment, and an `lstm_prob` input.
+TensorFlow/Keras builds a binary sequence classifier. The live model uses the ordered columns `close`, `sma20`, `sma50`, `rsi`, `macd`, `bb_upper`, and `bb_lower`; a MinMaxScaler transforms them. Defaults are 30 observations of lookback, 48 LSTM units, 0.2 dropout, a 16-unit dense layer, sigmoid output, Adam, binary cross-entropy, batch size 32, and up to 6 epochs with early stopping. The random seed is 42.
 
-For training rows, `lstm_prob` is a transformed five-day momentum proxy. For the newest prediction row, this field is replaced by the current LSTM probability. This gives the classifier a historical stand-in for the LSTM feature, but the proxy is not a true out-of-fold LSTM prediction. The distribution mismatch is a methodological limitation.
+The scaler is saved with the fitted LSTM artifact. In the live training path it is fit on the available feature window before the sequence validation split; therefore the reported validation behavior is not a fully untouched chronological test. If TensorFlow is missing/incompatible or there are too few sequences, LSTM probability falls back to 0.5 and metadata records why.
 
-The default forest has 250 trees, maximum depth 7, minimum leaf size 4, balanced class weights, and fixed random seed 42. It returns a probability for the up class and feature importance values.
+### Random Forest
 
-### XGBoost comparison
+The forest is a scikit-learn `RandomForestClassifier` with a default of 250 trees, maximum depth 7, minimum leaf size 4, balanced class weights, and seed 42. It uses `return_1d`, `return_5d`, moving-average gaps, RSI, MACD and signal, Bollinger position, and volume change. No scaling is applied. With enough labeled data, a trailing chronological holdout is scored first; then a separate forest is refit on all available labeled rows for the current inference. With fewer than 100 usable rows, the component returns 0.5 and reports insufficient samples.
 
-If the XGBoost package is available, the backend trains an additional XGBoost classifier, reports holdout accuracy and balanced accuracy, and returns its up probability for model comparison. XGBoost does not currently contribute to the final ensemble score. Its import or runtime errors are caught, so the main result can still be returned without its comparison.
+### Optional XGBoost and SHAP
 
-### FinBERT news sentiment
+When XGBoost imports and fits successfully, the backend scores it on the Random Forest comparison window, then refits it for an up probability. The comparison uses 180 estimators, depth 4, learning rate 0.05, row/column subsampling of 0.85, log-loss, and seed 42. XGBoost is guarded as optional; failures do not stop the main prediction. It is not included in hybrid weights. SHAP is also attempted for the latest Random Forest input; when unavailable or failing, its explanation is omitted/empty. Random Forest feature importance is separately returned.
 
-FinBERT is a finance-oriented BERT text classifier loaded from Hugging Face Transformers. The default model identifier is `ProsusAI/finbert`; `FINBERT_MODEL` can override it. The pipeline is cached once per backend process. On the first use, the model files may need to download and load, which can take time and use disk space and memory.
+### Explicit hybrid rule
 
-The backend classifies headlines as positive, negative, or neutral. For each headline it calculates positive score minus negative score. The aggregate sentiment is the average across the processed headlines, normally between -1 and +1. No articles produces 0.0. If FinBERT cannot load or score the articles, headlines are still returned with a null per-article sentiment and the aggregate is neutral.
-
-## 08. How the final signal is calculated
-
-The current combined score is a weighted average of four values. A component is first expressed on an up-probability-like 0-to-1 scale:
+`backend/hybrid.py` owns the target definition, hybrid version (`weighted-probability-v1`), and fixed weights:
 
 ```text
-combined score =
-    0.50 * LSTM probability up
-  + 0.30 * Random Forest probability up
-  + 0.10 * ((FinBERT sentiment + 1) / 2)
-  + 0.10 * technical probability up
+hybrid up score =
+    0.40 × LSTM probability-up
+  + 0.40 × Random Forest probability-up
+  + 0.10 × ((FinBERT score + 1) / 2)
+  + 0.10 × technical probability-up
 ```
 
-The technical score starts at zero. The code adds or subtracts points for aligned moving averages, strong five-day momentum, or a specific RSI/MACD reversal condition. The resulting score is clipped to -1 through +1, then remapped to 0 through 1. The technical component therefore contributes at most ten percentage points to the combined score.
+The sentiment mapping is a simple, documented proxy, not a calibrated probability. Technical rules add/subtract fixed points, clip the result to [-1, +1], then map it to [0, 1]. The score and its component inputs, weights, and contributions are returned for inspection.
 
-The signal thresholds are:
+| Combined score | Signal |
+|---:|---|
+| 0.64 or higher | Strong Buy |
+| 0.54 to below 0.64 | Buy |
+| Above 0.46 to below 0.54 | Hold |
+| Above 0.36 through 0.46 | Sell |
+| 0.36 or lower | Strong Sell |
 
-- Combined score at least 0.64: **Strong Buy**.
-- At least 0.54 but below 0.64: **Buy**.
-- Above 0.46 but below 0.54: **Hold**.
-- Above 0.36 and at most 0.46: **Sell**.
-- At most 0.36: **Strong Sell**.
+The dashboard's saved-signal card presents the simpler BUY/HOLD/SELL wording and does not derive a signal from the price-momentum gauge. Backend prediction details may include Strong Buy or Strong Sell.
 
-The Analysis page's Signal Evidence panel shows each component's input, its weight, weighted contribution, and the technical factors. These are the values used by the combination logic. The combined score is an internal model score, not a calibrated probability of making money.
+### Confidence and predicted change
 
-The displayed `confidence` is calculated from distance from 0.5: `50 + abs(combined score - 0.5) * 100`. It is a simple derived display value, not an empirically calibrated confidence interval or a claim that the model is correct that percentage of the time.
+The displayed confidence-like number is derived from distance of the combined score from 0.5. It is not a calibrated probability, confidence interval, or percentage chance of profit. The `predicted_change` figure is a separate heuristic based on the combined score, recent 5-day return, and square-root horizon scaling. It is not an output of a regression model and is not a price target. Selecting 1W/1M/3M does not change the model's next-session classification target.
 
-The displayed predicted change is also a heuristic. It combines the score's distance from neutral with the five-day return, scales by the square root of the selected horizon, and converts to percent. It is not generated by a price-regression model and should not be treated as a target price.
+## 6. Saved model artifacts and versioning
 
-## 09. Evaluation and model comparison
+`backend/model_registry.py` writes fitted model artifacts under `backend/model_artifacts/` by default (or `DEEPSIGNAL_ARTIFACT_DIR` if configured). It stores a deterministic version identity based on ticker, exact market-data SHA-256 fingerprint and date window, target, ordered feature lists, preprocessing/feature/model-code versions, hybrid version, tuning configuration, sentiment model name, random seeds, and installed package versions.
 
-The Random Forest and optional XGBoost evaluations use a chronological holdout. The backend sorts rows in historical order, reserves the newest 20 percent (at least 20 rows, while keeping at least 80 earlier rows), fits an evaluation model on the earlier segment, and calculates accuracy and balanced accuracy on the held-out segment. It reports the training/test sample counts and first/last test dates. It then fits a fresh model on all labeled rows to calculate the live prediction.
+When the same complete identity is requested again, the backend can load the saved model, scaler, and metadata instead of fitting again. If the market data window or identity changes, a different version is created. Saved LSTM, Random Forest, and available XGBoost estimators, the LSTM scaler, and optional Keras model are written as an artifact bundle with JSON metadata; the loader checks identifiers, expected files, input shape, and feature order. A bounded in-process loaded-model cache holds recent versions. Older artifacts are retained for rollback; they are local files, not automatically uploaded to Supabase.
 
-Accuracy is the share of held-out classifications that match the recorded up/down label. Balanced accuracy averages recall for the up and down classes, which can be more informative when class counts differ. These scores are historical measurements on one holdout window; they do not promise future performance and can vary by ticker and date range.
+Useful routes:
 
-When fewer than 100 labeled rows are available, the backend omits accuracy rather than inventing a 50 percent score. The live Random Forest probability falls back to 0.5 in that case.
+- `GET /api/models` — list model-version metadata.
+- `GET /api/models/{version}` — inspect one version.
+- `POST /api/models/{version}/load` — validate and load it into the current backend process.
 
-The LSTM's internal validation split is not the same as the Random Forest/XGBoost holdout metrics. The application does not currently provide a full rolling multi-fold evaluation for the LSTM. Also, the whole signal pipeline is not yet evaluated as one end-to-end strategy over repeated untouched periods.
+Loading an artifact does not force its use for a different ticker/data/configuration identity. The pretrained FinBERT weights remain in the Hugging Face cache and are identified by model name; they are not copied into every trained-model artifact. The backtest is rule-based and carries strategy/engine versions instead of a fitted model version.
 
-SHAP is optional. When available, TreeExplainer estimates how the Random Forest's features contributed to its output for the current feature vector. It is a local explanation of the forest, not a proof of cause or a full explanation of the LSTM, FinBERT, or final weighted score.
+## 7. Evaluation and backtesting
 
-## 10. Backtesting and its limits
+### Dedicated direction evaluation
 
-The backtest downloads daily history, computes indicators, and applies a separate rule after a warm-up period. It goes long when the five-observation momentum used by the rule is above 0.6 percent and RSI is below 72. It goes short when momentum is below -0.6 percent and RSI is above 28. Otherwise, it is flat. A transaction-cost-plus-slippage charge is applied when the position changes. The chart also plots buy-and-hold and a flat naive curve.
+`GET /api/evaluate/{symbol}` downloads up to three years of daily history and builds a chronological train/validation/test report for next-session direction. It needs at least 120 usable samples and both classes in fitting data; otherwise it returns an explicit insufficient-data status.
 
-The backtest's strategy is a simplified momentum/RSI rule. It is not the LSTM/Random Forest/FinBERT ensemble, even though the returned series is named `hybrid` and the UI labels it Hybrid. Results therefore cannot answer the question, "How would the exact current signal model have performed historically?"
+- First 60%: initial training window; the LSTM scaler is fit only on these rows.
+- Rows through the first 80% are available to fit/evaluate models before the final holdout. The Random Forest is fit on those first 80%; the LSTM uses an earlier fit portion and an internal validation portion for early stopping.
+- Final 20%: shared holdout test window for all compared methods.
+- Compares previous-session-direction baseline, Random Forest, LSTM, and weighted hybrid.
+- Reports accuracy, precision/recall/F1 for up class, confusion matrix, and simplified trading metrics.
+- Reports buy-and-hold and flat-cash baselines and hybrid deltas versus component models.
+- Records the data hash, dates, parameters, model/package versions, and assumptions.
 
-The signal position and same-day return timing should also be treated carefully. A more rigorous backtest should calculate a signal from information available at the end of one bar and apply it to the next bar's return. This helps avoid using a day's closing information to decide a position that earns that same day's return.
+Evaluation fits the LSTM scaler using only the earlier 60% training rows. Historical point-in-time news is not available, so evaluation explicitly uses neutral sentiment on all historical hybrid test rows. This means it does **not** validate the live news/FinBERT contribution. The models share final test dates, but this is one final holdout, not repeated rolling retraining of every component.
 
-Metrics are descriptive:
+### Rule-based historical backtest
 
-- **Total return:** percent change from the starting curve value to the ending value.
-- **Sharpe ratio:** average periodic return divided by return volatility, annualized with the square root of 252.
-- **Maximum drawdown:** largest peak-to-trough percentage decline.
+The Backtest page and `GET /api/backtest/{symbol}` use a separate long-only technical strategy. Signals are created after each daily close using:
 
-The backtest is a learning aid. It simplifies fills, market impact, trading hours, taxes, currency, corporate actions, survivorship, and data quality.
+- BUY when 5-day return is above 0.6% and RSI is below 72;
+- SELL when 5-day return is below -0.6% and RSI is above 28;
+- otherwise HOLD.
 
-## 11. API reference
+Signals execute at the next available daily open, which prevents using a future price for the order. Position size targets the configured fraction of equity (default 100%); fractional shares are allowed. Buys/sells include adverse slippage and a percentage transaction cost. The engine tracks cash, holdings, equity, trades, drawdown, exposure, turnover, return, CAGR, and annualized Sharpe. It liquidates any remaining position at the final close with costs.
 
-All endpoints return JSON. The interactive FastAPI documentation is available at `http://127.0.0.1:8000/docs` after starting the backend.
+The report compares the strategy with buy-and-hold (including modeled costs) and no-trade cash. It contains the price-data hash, signal hash, date window, strategy and engine versions, parameters, and execution assumptions. It sets `model_version` to null because it is not a trained-model strategy. The live prediction endpoint also includes a rule-based backtest payload for presentation, but that payload is not a simulation of the prediction ensemble.
 
-### `GET /api/health`
+### Metrics: what they do and do not say
 
-Returns a small health response with status `ok` and a UTC timestamp. It confirms the API process responds; it does not verify Yahoo Finance, FinBERT, or TensorFlow availability.
+- **Accuracy:** fraction of direction labels classified correctly; can hide class imbalance.
+- **Precision / recall / F1:** focus on the positive/up class and its false alarms/misses.
+- **Confusion matrix:** counts actual versus predicted up/down labels.
+- **Cumulative return / CAGR:** historical simulated account growth over a selected window.
+- **Maximum drawdown:** largest peak-to-trough loss in the reported equity curve.
+- **Sharpe:** annualized average return relative to variability under the report's assumptions.
+- **Turnover / trade count / exposure:** describe trading activity and time invested.
 
-### `GET /api/predict/{symbol}?timeframe=1D`
+Metrics depend on provider data, window, thresholds, costs, and implementation assumptions. Past simulation is not a promise of future results.
 
-Runs the analysis pipeline. `timeframe` accepts `1D`, `1W`, `1M`, or `3M`. The response contains the ticker, date and latest close, signal, trend, predicted-change estimate, sentiment, LSTM and Random Forest probabilities, signal explanation, indicators, news, feature importances, model comparisons, risks, recommendation text, and backtest payload.
+## 8. Caching and scheduled market-data updates
 
-### `GET /api/history/{symbol}?period=1y`
+### In-process cache
 
-Returns OHLCV records. Period accepts `3mo`, `6mo`, `1y`, `2y`, or `3y`. The Dashboard requests `3mo`.
+`backend/cache.py` provides a bounded, thread-safe TTL cache. It is local to one backend process and clears on restart. It tracks hits, misses, expirations, evictions, and provider call timing.
 
-### `GET /api/backtest/{symbol}`
+- Yahoo daily OHLCV requests: 15-minute default TTL (`MARKET_DATA_CACHE_TTL_SECONDS`); 0 disables this cache. Scheduled refresh explicitly bypasses it.
+- Technical feature results: keyed by input-data fingerprint and feature-code version; cached for 24 hours.
+- Company-name lookups: successful result cached for one day; unsuccessful lookup cached for 30 minutes.
+- Prediction response: not cached because market data/news can change.
 
-Returns dates, strategy/baseline curves, and metric summaries for the separate momentum/RSI backtest.
+`GET /api/cache/status` reports cache and TTL details. This cache reduces repeated work but is not shared between backend workers and does not survive restart.
 
-### `GET /api/generalization`
+### Scheduler
 
-Runs the backtest for a built-in small basket of six symbols and reports sector-labeled results or an error per symbol. This endpoint can take time and depends on current provider data availability.
+`backend/scheduler.py` starts a daemon thread during backend startup unless `MARKET_DATA_REFRESH_ENABLED=false`. It immediately attempts a refresh, then waits the configured interval (six hours by default; minimum five minutes). `MARKET_DATA_SYMBOLS` is a comma-separated ticker list, default `AAPL`.
 
-### `GET /api/config` and `POST /api/config`
+For each ticker it fetches about one year of daily bars, bypasses the request cache, validates missing/duplicate/out-of-order data, computes technical features, and stores bars and features. A ticker is retried up to three times with short exponential delays. The job records start/end times, success/partial/failure state, rows, tickers, and per-symbol failures. Its latest status is available at `GET /api/jobs/market-data`.
 
-GET returns active tuning settings. POST accepts the same fields with bounds. A successful POST writes `backend/tuning_config.json` and updates the in-process configuration used by subsequent requests.
+The scheduler handles market-data refresh and feature calculation. It does not perform scheduled model fitting/inference. Yahoo determines when daily data becomes available; scheduled polling cannot make that source real-time. A single in-process thread is suitable for this prototype, not a distributed job system.
 
-## 12. Frontend behavior and local storage
+## 9. Persistence and database design
 
-React and React Router render the pages from `frontend/src/main.jsx`. Recharts renders line and bar plots. The dashboard candlestick chart is drawn as SVG. `frontend/src/styles.css` contains the responsive layout and both color themes. The theme is stored under `deepsignal_theme` in local storage.
+### Storage choices
 
-Saved predictions are stored under `deepsignal_signals`. The browser stores up to 100 recent items. They are not posted back to the server. This means saved signals are local to one browser profile and can be removed by clearing browser site data or using the Clear History action.
+The backend talks to Supabase Postgres through HTTPS REST calls using `requests`; no local DB server or Postgres Python driver is required. Set both `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `backend/.env` to use it. If both are absent, the backend uses local JSON fallbacks. If only one or invalid settings are supplied, storage reports an incomplete/invalid state rather than silently pretending it connected.
 
-The Vite proxy in `frontend/vite.config.js` forwards `/api` requests to `http://localhost:8000`. For a different backend host, change the proxy or use a deployment-specific frontend configuration, then set the backend's `CORS_ORIGINS` to the frontend origin.
+The backend persists:
 
-## 13. Tuning parameters
+- **Predictions:** prediction response, ticker, horizon, timestamp, signal, model version, input window, data fingerprint, and explanation.
+- **Signals:** signal type, timestamp, strategy/hybrid version, reason, and metadata tied to the prediction.
+- **Market-data runs:** metadata/fingerprint and reference to the data used by a prediction.
+- **Experiments:** evaluation/backtest report, run ID, metric summaries, parameters, versions, date window, and assumptions.
+- **Scheduled market bars:** daily OHLCV bars and computed feature JSON for configured tickers, after migration 002 is installed.
+- **Background job runs:** scheduler status and details, after migration 002 is installed.
 
-The Tuning form sends a POST request to `/api/config`. Pydantic validates the values before they are applied:
+Tables for predictions/signals/market-data runs/experiments are in `backend/sql/001_persistent_storage.sql`. Scheduler tables are in `backend/sql/002_market_data_scheduler.sql`. Both migrations are run in the Supabase Dashboard SQL Editor. They enable row-level security, revoke public/anonymous/authenticated access, and grant the backend service role the intended table access. The secret key belongs only in the backend environment; do not put it in frontend code or commit it.
 
-- **Lookback:** 10 to 120 observations; default 30. Changes the number of rows in an LSTM input window.
-- **LSTM units:** 8 to 256; default 48. Changes the recurrent layer size and model capacity.
-- **Epochs:** 1 to 100; default 6. Sets the maximum number of training passes; early stopping can end training sooner.
-- **Random Forest trees:** 50 to 1000; default 250. Changes the number of trees.
-- **Transaction cost:** 0 to 2 percent; default 0.06 percent.
-- **Slippage:** 0 to 2 percent; default 0.04 percent.
+Without Supabase, local fallbacks include `prediction_runs.json`, `evaluation_runs.json`, `backtest_runs.json`, `market_data_bars.json`, and `job_runs.json` under `backend/`. They are local and ignored by Git. Tuning config and model artifacts are also local. The frontend's browser signal history is separate from all these backend stores.
 
-Transaction cost and slippage are combined in the backtest as a charge for a position change. They do not change live predictions. The other four parameters affect model fitting/prediction. More units, trees, lookback, or epochs can make analysis slower and do not guarantee better accuracy.
+### Supabase setup
 
-Configuration is stored in a JSON file beside `backend/main.py`; it is local to this checkout. Back up or copy that file if you want to carry custom settings to another machine. Keep values within the documented bounds.
+1. Create a Supabase project and copy its Project URL and Secret key.
+2. Run `backend/sql/001_persistent_storage.sql` once in that project's SQL Editor.
+3. If scheduled bar/job persistence is wanted, also run `backend/sql/002_market_data_scheduler.sql`.
+4. Put `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `backend/.env`, preserving other settings. Never paste the secret into frontend settings or a public place.
+5. Restart the backend and open `http://localhost:8000/api/storage/status`. Confirm `status` is `connected`.
+6. Run predictions/evaluations/backtests; inspect history via the API. Restarting the backend should not remove Supabase records.
+7. Existing local experiment reports can be imported once through `POST /api/storage/import-local-experiments`; run IDs make retries idempotent.
 
-## 14. Installation on another computer
+The prediction/history API can save metadata and model outputs without uploading every historical price row. The scheduler separately stores daily bars when migration 002 is applied. Browser-only saved signals are not automatically migrated to Supabase.
 
-The following assumes the project folder is named `DeepSignal`. Use two terminals so the API and frontend can remain running together.
+## 10. API reference
 
-### Windows PowerShell
+Interactive API docs are available at `http://localhost:8000/docs` while the backend is running. API responses are JSON. Vite proxies browser `/api` calls to the backend during development.
 
-1. Install Python with pip and Node.js/npm. Clone or copy the project, then open PowerShell in its root folder (the folder containing `backend` and `frontend`).
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/health` | Basic backend health and UTC time. |
+| GET | `/api/company/{symbol}` | Resolve a ticker to a company name through Yahoo metadata. |
+| GET | `/api/predict/{symbol}?timeframe=1D` | Run live model inference, return signal/evidence, include a rule-based backtest, and persist prediction. Horizons accepted: `1D`, `1W`, `1M`, `3M`. |
+| GET | `/api/history/{symbol}?period=3mo` | Return daily OHLCV history. Periods accepted: `3mo`, `6mo`, `1y`, `2y`, `3y`. |
+| GET | `/api/backtest/{symbol}` | Run and persist the rule-based next-open backtest. |
+| GET | `/api/evaluate/{symbol}` | Run and persist the chronological direction model evaluation. |
+| GET | `/api/generalization` | Run the fixed multi-sector example backtest basket. |
+| GET | `/api/config` | Read tuning configuration. |
+| POST | `/api/config` | Validate and save tuning configuration JSON. |
+| GET | `/api/models` | List saved model versions; accepts optional `limit`. |
+| GET | `/api/models/{version}` | Return saved version metadata. |
+| POST | `/api/models/{version}/load` | Validate/load a saved artifact into the backend process. Requires POST, not browser address-bar GET. |
+| GET | `/api/history/predictions?symbol=AAPL` | Read backend-saved predictions; symbol filter is optional. |
+| GET | `/api/history/experiments?kind=backtest` | Read evaluation/backtest runs; `kind` is optional. |
+| GET | `/api/storage/status` | Check configured storage connectivity or local fallback mode. |
+| POST | `/api/storage/import-local-experiments` | Import local evaluation/backtest JSON into configured Supabase. |
+| GET | `/api/jobs/market-data` | Scheduler enablement, configured symbols, last run and latest successful refresh. |
+| GET | `/api/cache/status` | In-process cache counts and TTL configuration. |
+
+## 11. Project layout
+
+```text
+DeepSignal/
+├── backend/
+│   ├── main.py                 FastAPI routes, prediction orchestration, features and model calls
+│   ├── hybrid.py               Direction target, hybrid version, weights and probability fusion
+│   ├── model_registry.py        Artifact identity, persistence, validation and loading
+│   ├── evaluation.py           Chronological model evaluation report
+│   ├── backtesting.py          Timestamp-aware portfolio simulation engine
+│   ├── scheduler.py            Background daily market-data refresh
+│   ├── cache.py                Bounded in-process TTL cache
+│   ├── database.py             Supabase REST and local JSON persistence
+│   ├── requirements.txt        Backend runtime dependencies
+│   ├── requirements-dev.txt    Runtime plus test client dependency
+│   ├── .env.example            Safe settings template
+│   ├── sql/
+│   │   ├── 001_persistent_storage.sql
+│   │   └── 002_market_data_scheduler.sql
+│   └── tests/                  Focused unittest suite
+├── frontend/
+│   ├── package.json            React/Vite dependencies and commands
+│   ├── package-lock.json       Locked frontend dependency graph
+│   ├── vite.config.js          Vite dev server and API proxy
+│   ├── index.html              Browser app entry document
+│   └── src/
+│       ├── main.jsx            Pages, shared ticker state, API calls, UI logic
+│       ├── Charts.jsx          Reusable Recharts components
+│       └── styles.css          Themes, layouts, responsive UI and component styles
+├── docs/
+│   └── DeepSignal_Project_Guide.md  This complete project reference
+├── tools/
+│   └── build_project_guide_pdf.py  Rebuilds the guide PDF with Python only
+├── run_backend.bat             Windows backend setup/launcher
+├── run_frontend.bat            Windows frontend dependency check/launcher
+├── README.md                   Quick overview and common setup instructions
+└── .gitignore                  Excludes environments, secrets and generated artifacts
+```
+
+Generated directories such as `backend/.venv`, `frontend/node_modules`, `frontend/dist`, `backend/model_artifacts`, local environment files, and local run histories are not source files and are ignored by Git.
+
+## 12. Run the project
+
+### Windows: simplest start from scratch
+
+Install Python and Node.js (which includes npm) first. In two PowerShell terminals opened at the project root, run:
 
 ```powershell
-cd C:\path\to\DeepSignal
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r backend\requirements.txt
-Copy-Item backend\.env.example backend\.env
+cd C:\Users\Athira\Downloads\DeepSignal
+.\run_backend.bat
 ```
 
-2. Start the backend in terminal one, from the project root:
+In the second terminal:
 
 ```powershell
-python -m uvicorn backend.main:app --reload --port 8000
+cd C:\Users\Athira\Downloads\DeepSignal
+.\run_frontend.bat
 ```
 
-3. Start the frontend in terminal two:
+Keep both terminals open. Open the local URL printed by Vite, usually `http://localhost:5173`. Stop each server with Ctrl+C.
+
+### Regenerate this guide as a PDF
+
+With Python installed, run from the project root:
 
 ```powershell
-cd frontend
-npm install
-npm run dev
+python tools/build_project_guide_pdf.py
 ```
 
-4. Open `http://localhost:5173`. The API docs are at `http://127.0.0.1:8000/docs`.
+The script uses only Python's standard library. It writes `docs/DeepSignal_Project_Guide.pdf` and renders the architecture diagram with the model components highlighted.
 
-If PowerShell blocks virtual-environment activation, you can leave it unactivated and call the venv Python directly from the project root. For example, use `.venv\Scripts\python.exe -m pip install -r backend\requirements.txt`, then `.venv\Scripts\python.exe -m uvicorn backend.main:app --reload --port 8000`.
+`run_backend.bat` creates `backend/.venv` if needed, creates `backend/.env` from the example only if no `.env` exists, installs/updates `backend/requirements.txt`, and starts Uvicorn on `127.0.0.1:8000` with auto-reload. It never replaces an existing `.env`.
 
-### macOS or Linux
+`run_frontend.bat` checks npm, installs packages on first setup (`npm ci` when a lockfile is present; otherwise `npm install`), and runs Vite. If dependencies change after `node_modules` already exists, run `npm ci` manually inside `frontend` to synchronize with the lockfile.
+
+### Manual Windows setup
 
 From the project root:
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env
-```
-
-Start the backend in terminal one, from the project root:
-
-```bash
-python -m uvicorn backend.main:app --reload --port 8000
-```
-
-Start the frontend in terminal two:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173` in a browser.
-
-### Optional NewsAPI key
-
-Open `backend/.env` and set `NEWS_API_KEY` if you have one. Leave it blank to use Yahoo news fallbacks. Do not put keys in React code, commit the `.env` file, or share it in screenshots. `FINBERT_MODEL` defaults to `ProsusAI/finbert`. `CORS_ORIGINS` defaults to `http://localhost:5173` for local development.
-
-TensorFlow and PyTorch model packages can be large and may require a supported Python/platform combination. If pip reports a wheel or compatibility error, check the Python architecture/version and package support for that system. The requirements file requests modern minimum versions; a virtual environment is strongly recommended.
-
-## 15. Running the validation suite
-
-The project uses Python's built-in `unittest` runner. The tests use FastAPI's TestClient and mock external market/news sources, so they do not intentionally call the internet or download model weights.
-
-Install the development requirements from the project root:
-
 ```powershell
-python -m pip install -r backend\requirements-dev.txt
-```
-
-Run the suite:
-
-```powershell
-python -m unittest discover -s backend\tests -v
-```
-
-On macOS/Linux use forward slashes in the discover path:
-
-```bash
-python -m pip install -r backend/requirements-dev.txt
-python -m unittest discover -s backend/tests -v
-```
-
-The current suite covers health and prediction route response shape, unsupported timeframe rejection, Buy/Sell/Hold threshold boundaries, persisted tuning configuration and bounds, empty news when providers fail, neutral FinBERT behavior when unavailable, and a neutral LSTM fallback when TensorFlow cannot be imported.
-
-## 16. Troubleshooting
-
-- **Browser says connection refused on port 8000:** start the backend and look for `Uvicorn running`. A blank API page usually means the server process stopped or failed to import.
-- **`Could not import module "main"`:** from the project root use `python -m uvicorn backend.main:app --reload --port 8000`. From inside `backend`, use `python -m uvicorn main:app --reload --port 8000`.
-- **`IndentationError` or import traceback:** read the final lines of the terminal traceback; correct the Python error before refreshing the page.
-- **Frontend API error:** confirm the backend is listening on port 8000 and the Vite server on 5173. Check the browser's Network panel and the backend terminal.
-- **No news:** this can be a provider response, rate limit, key, or network issue. Prediction should continue with neutral sentiment when there are no headlines.
-- **First prediction is slow:** TensorFlow training and first-time FinBERT loading can be CPU-, memory-, and download-intensive. Wait for the API response and inspect the backend terminal.
-- **No market history:** confirm the ticker format and provider access. For Indian NSE tickers, test the `.NS` suffix. The backend returns a not-found error when yfinance supplies no bars.
-- **Tuning save fails:** check the Tuning page's validation message and ensure the backend process can write `backend/tuning_config.json`.
-- **Port is busy:** stop the older process with Ctrl+C or choose another backend port and update the Vite proxy to match.
-
-## 17. Security, privacy, and operating boundaries
-
-The intended setup is a developer's own machine. The API currently has no login, user accounts, rate limiting, or authorization. Do not expose this development server directly to the public internet. A production deployment would need authentication, authorization for configuration changes, HTTPS, rate limiting, request validation, secret management, logging controls, and a deployment-specific CORS allowlist.
-
-The POST tuning endpoint writes a file on the backend machine. Anyone who can reach an unprotected backend can change the active configuration. The browser's saved signals and theme remain in local browser storage. NewsAPI secrets belong only in the backend `.env` file. Market and news requests are sent to external providers, so ticker queries and provider traffic leave the local computer.
-
-The project does not execute trades, store brokerage credentials, or persist a user's financial account information. It should be treated as an educational prototype, not a hardened investment service.
-
-## 18. Current limitations and sensible next steps
-
-The system can be improved without changing the overall architecture:
-
-1. Replace the separate backtest rule with a strictly lagged simulation of the exact ensemble signal, including realistic next-bar execution.
-2. Fit data scalers and feature transformations within each chronological training fold to avoid holdout leakage.
-3. Generate out-of-fold historical LSTM probabilities for Random Forest training rather than using a five-day momentum proxy.
-4. Evaluate more than one chronological window and report sample sizes, class balance, baseline scores, and uncertainty.
-5. Calibrate probabilities on a separate validation period before calling them probabilities; rename the current confidence value until calibrated.
-6. Cache downloaded OHLCV data and trained models with explicit freshness/version policies to reduce repeated runtime and provider load.
-7. Add stronger ticker validation, clearer API error messages, request timeouts, and structured logs that do not include secrets.
-8. Add UI loading/error states for Models and other pages, plus tests for `build_prediction`, the combined-score arithmetic, and backtest timing.
-9. Document the exact supported Python/OS/package matrix and add a reproducible lock file or container image.
-
-These are improvement opportunities, not prerequisites for running the local prototype.
-
-## 19. Glossary
-
-- **API:** a defined way for one program to request data or actions from another program.
-- **OHLCV:** Open, High, Low, Close, and Volume market-bar fields.
-- **Feature:** a numeric input calculated or collected for a model.
-- **Label / target:** the historical outcome the model is trained to classify. Here it is whether the next close is higher than the current close.
-- **Probability up:** the model's output score for the up class. It is not automatically a calibrated real-world probability.
-- **Holdout:** a later part of historical data kept separate while fitting a model, then used to estimate performance on unseen rows.
-- **Accuracy:** the fraction of classifications that match labels.
-- **Balanced accuracy:** mean recall across the two classes, useful when classes have different sizes.
-- **Sentiment:** a text model's positive/negative tone estimate for a headline.
-- **LSTM:** a recurrent neural network designed to process sequences.
-- **Random Forest:** an ensemble of decision trees that combines their votes.
-- **XGBoost:** a gradient-boosted tree library used here for optional comparison.
-- **FinBERT:** a BERT-family language model adapted for financial text classification.
-- **Backtest:** a simulation that applies a strategy rule to historical data.
-- **Drawdown:** decline from a previous high to a later low in a value curve.
-- **Slippage:** difference between an assumed trade price and a realistic execution price.
-- **CORS:** browser security rules that control which website origins may call an API.
-- **Local storage:** browser-managed key/value storage that stays on one browser profile.
-
-## 20. Final perspective
-
-DeepSignal joins a local React interface to a Python data and modeling service. It is useful for seeing how data collection, feature engineering, sequence models, tree classifiers, text sentiment, API design, and visualization can fit together. Its most important lesson is also its main caution: a coherent-looking dashboard does not by itself prove predictive skill. Use the displayed data dates, holdout results, component evidence, and backtest assumptions to judge the output, and improve evaluation before treating a signal as actionable.
-
-## 21. How this guide uses the proposal
-
-The supplied proposal, *A Hybrid Deep Learning and Financial-NLP Framework for Robust Stock Trend Prediction and Trading Signal Generation*, describes a target design. It is not a manifest of features already present in this repository. This guide describes the repository as it exists and marks proposal ideas that are future work. A component is implemented only when source code actually performs it.
-
-The proposal's sequence is: collect and align prices and news; compute technical and text features; forecast direction with LSTM; classify a trade signal with Random Forest and compare boosted trees; explain feature effects; evaluate chronologically with trading costs and baselines; test across stocks; then present results in a dashboard. DeepSignal follows much of this shape, but several implementations are narrower than the proposal or remain incomplete.
-
-### Proposal component status
-
-- **Python 3.10+:** Python is the backend language. Use a Python version compatible with the chosen dependency releases and operating system.
-- **Yahoo Finance prices:** Implemented through `yfinance`; price history is fetched on request.
-- **News API:** Optional NewsAPI request is implemented with Yahoo Finance news fallback. The app does not archive news history or reconstruct the exact headline set for each training date.
-- **Kaggle datasets:** Not ingested by the code. There is no Kaggle downloader, dataset, or ingestion workflow.
-- **CSV or SQLite storage:** Not implemented for prices or news. Tuning values are stored in JSON; saved signals live in browser local storage.
-- **Technical indicators and TA-Lib fallback:** Indicators use pandas formulas. The backend does not require or call TA-Lib, so there is no runtime TA-Lib fallback.
-- **LSTM:** Implemented as a next-day up/down probability model over recent price and indicator sequences. It does not output a future dollar price.
-- **FinBERT:** Implemented for available headlines. If it cannot load, the system continues with neutral sentiment.
-- **Random Forest:** Implemented as the main tabular classifier, evaluated on a chronological holdout before a full-data refit for current inference.
-- **XGBoost:** Implemented as an optional comparison when it imports and runs. It reports holdout metrics and a probability but does not affect the final combined signal.
-- **LightGBM:** Not implemented and not listed as a runtime dependency.
-- **SHAP:** A Random Forest TreeExplainer attempt is made and failures yield no SHAP values. This does not explain LSTM, FinBERT, or the whole ensemble.
-- **Walk-forward evaluation:** The backtest advances through dates but uses a hand-written momentum/RSI rule, not the model ensemble. RF/XGBoost metrics use one chronological holdout rather than repeated rolling folds.
-- **Costs and slippage:** Included in the rule-based simulation and adjustable on Tuning.
-- **Baselines:** Buy-and-hold is implemented. The `naive` chart is a constant cash curve, not a trained lag-1 model. The proposal's dedicated LSTM echo baseline is not implemented.
-- **Multi-stock/sector checks:** A fixed six-ticker endpoint evaluates the rule-based backtest, not the full ML classifier across a broad universe.
-- **Dashboard:** The implementation uses React, Vite, and Recharts. Plotly and Streamlit are not in this repository.
-
-## 22. Deep dive: LSTM model
-
-### What the LSTM learns
-
-LSTM means Long Short-Term Memory. It is a recurrent neural network that reads observations in time order and updates an internal state as it goes. Its gates control what past information to retain, update, or forget. This gives it a way to represent patterns across adjacent observations; it does not make market behavior predictable by itself.
-
-DeepSignal's LSTM output is a scalar from zero to one. A value of 0.7 means the network assigns 70% model probability to the next close being higher, given its learned mapping and current input. It does not mean a 70% chance of profit after costs. The model does not produce a target price. The positive label is whether the next row's close is greater than the current row's close.
-
-### Exact input and training path
-
-The sequence uses seven columns: close, SMA 20, SMA 50, RSI, MACD, Bollinger upper, and Bollinger lower. The default lookback is 30 observations. A MinMaxScaler scales the columns, and sliding windows are paired with the direction from close at time *t* to close at *t+1*. Rolling indicators create missing values at the beginning; those rows cannot form complete sequences. The final available window is passed to the network for the current probability.
-
-The architecture is one LSTM layer (default 48 units), dropout of 0.2, a 16-unit ReLU dense layer, and one sigmoid output. It uses Adam and binary cross-entropy. The configured epoch count is the maximum; early stopping with patience 2 can stop earlier and restores the best validation weights. Batch size is 32. Lookback, unit count, and epochs are adjustable within validation limits on the Tuning page.
-
-Training requires at least 80 generated windows. Otherwise the component returns 0.5, meaning no directional evidence. If TensorFlow is unavailable, it also returns 0.5. This fallback keeps the API usable but is not a trained result. Model fitting happens again on prediction requests; trained weights are not saved as a reusable production model.
-
-### Validation and weaknesses
-
-The code keeps a chronological tail for early stopping validation, about the newest 15% or up to 40 observations. It does not report a separate out-of-sample LSTM accuracy from repeated folds. The scaler is fitted to all available rows before the training/validation boundary is applied, so its min/max values include the later validation period. A rigorous version would fit preprocessing on each training fold only, then apply the frozen transformation to that fold's later rows.
-
-The visible backtest does not retrain this LSTM at each historical boundary, so it cannot establish historical performance of the LSTM. Repeated fitting on live requests also costs time and complicates reproducibility unless data, versions, random seeds, and weights are recorded.
-
-## 23. Deep dive: Random Forest
-
-### What a Random Forest does
-
-A Random Forest trains many decision trees on randomized views of examples and features. A tree makes threshold-based branches, such as whether five-day return is above a value. Trees vote and their votes are averaged into class probabilities. This reduces the instability of a single tree and can represent nonlinear thresholds without scaling every input.
-
-DeepSignal uses the forest as a tabular classifier for whether the next close exceeds today's close. Inputs are one-day return, five-day return, gaps from SMA 20/50, RSI, MACD and its signal, Bollinger-band position, volume change, aggregate news sentiment, and an `lstm_prob` column.
-
-### The historical `lstm_prob` proxy
-
-For historical Random Forest training rows, `lstm_prob` is a logistic transformation of five-day return. It is a momentum proxy, not an actual LSTM forecast for each date. For the newest row only, the code substitutes the current LSTM output. This creates a train/inference mismatch. The RF holdout metrics also evaluate on the proxy, not genuine out-of-fold LSTM probabilities.
-
-A stronger approach generates historical LSTM probabilities with walk-forward or out-of-fold fitting, ensuring each row's probability comes from a network that has seen no later data and did not train on that row. The same process must apply inside model evaluation.
-
-### Holdout measurement and inference
-
-Rows with missing model inputs or unknown next-day labels are excluded. The newest unlabeled row remains for inference. Below 100 labeled rows, the classifier returns a neutral Hold and omits accuracy. Otherwise it keeps at least 80 older rows for fitting and reserves at least 20 newest rows (or about 20%) as chronological holdout. An evaluation forest is trained on the earlier rows and measured on the later rows. A fresh forest is then fitted on all labeled rows for the current prediction.
-
-Default settings are 250 trees, maximum depth 7, minimum leaf size 4, balanced class weights, and random seed 42. Tree count is tunable; other settings are fixed in source. Impurity-based feature importance is a global summary and can favor features with many possible split points. It is not a causal effect and is not the same as SHAP.
-
-Accuracy is the share of held-out up/down labels correctly predicted. Balanced accuracy averages recall for both classes and helps when class counts differ. Both scores describe one historical window for one ticker and feature setup. They do not include transaction costs, measure profitability, or prove the final ensemble is effective.
-
-## 24. Deep dive: XGBoost and model comparison
-
-XGBoost is a gradient-boosted tree method. It builds trees sequentially; later trees focus on errors left by earlier trees. Learning rate, depth, regularization, and row/feature sampling help control complexity. It can work well on structured data but can still overfit and must be evaluated chronologically.
-
-DeepSignal imports `XGBClassifier` inside a guarded optional block. It uses 180 estimators, depth 4, learning rate 0.05, row subsampling 0.85, column subsampling 0.85, log-loss evaluation, and random seed 42. It is evaluated on the same older-train/newer-holdout split as the forest, then refit on all labels for a current up probability. If import, fitting, or inference fails, the backend omits the XGBoost result and continues.
-
-XGBoost is currently a comparison model, not an ensemble voter. Its probability is returned in `model_comparison`; the final score uses LSTM, Random Forest, FinBERT, and technical evidence. Installing XGBoost therefore does not add its probability to Buy/Sell/Hold. This is one fixed parameter set, not a hyperparameter search. LightGBM appears in the proposal but is neither imported nor used here.
-
-## 25. Model fusion and signal interpretation
-
-The current combined score is a weighted arithmetic combination: LSTM 50%, Random Forest 30%, FinBERT 10%, and a technical rule score 10%. The model probabilities use a zero-to-one range. FinBERT's signed sentiment from -1 to +1 is converted with `(sentiment + 1) / 2`. Technical evidence is clipped to -1 through +1 and remapped similarly.
-
-The technical rule checks (1) close/SMA20/SMA50 alignment, (2) five-day momentum outside +/-2%, and (3) an RSI/MACD condition. Those fixed rule points are not a learned model. A neutral component contributes the midpoint 0.5 before weighting.
-
-The combined score maps to Strong Buy at 0.64 or above, Buy from 0.54, Hold between Buy and Sell thresholds, Sell at 0.46 or below, and Strong Sell at 0.36 or below. The evidence panel shows each component, weight, weighted contribution, and technical factors. The score is not a calibrated probability of profit. The displayed confidence is distance from 0.5, not a statistical confidence interval.
-
-The RF's internal classifier label uses its own thresholds, but the prediction builder replaces it with the final weighted ensemble label. Do not confuse the forest-only label with the API's final `signal_type`.
-
-## 26. Architecture and data flow in greater detail
-
-### Runtime components
-
-- **Browser:** React and React Router manage pages, form inputs, loading/error states, charts, theme, and local saved signals.
-- **Development server:** Vite serves port 5173 and proxies `/api` to FastAPI on port 8000.
-- **API:** FastAPI validates inputs, coordinates data retrieval and inference, and returns JSON.
-- **Market adapter:** `yfinance` retrieves OHLCV history; it is a provider dependency, not a guaranteed exchange feed.
-- **News adapters:** NewsAPI is optional; Yahoo Finance search and yfinance news fill results. Headlines are normalized and deduplicated in memory.
-- **Features:** pandas computes indicators, returns, and the next-row training target.
-- **Models:** TensorFlow/Keras runs LSTM; scikit-learn runs Random Forest; XGBoost is attempted optionally; Transformers runs FinBERT.
-- **Persistence:** `backend/tuning_config.json` stores tuning values. Browser local storage holds saved signals and theme. Market history, articles, and trained model weights are not persisted.
-
-### Request sequence
-
-```text
-User chooses ticker and horizon
-        |
-React calls /api/predict/{ticker}?timeframe=...
-        |
-FastAPI normalizes ticker and retrieves OHLCV history
-        +--> NewsAPI (optional) -> Yahoo search -> yfinance news
-        |       -> FinBERT scores up to eight headlines, or neutral fallback
-        +--> pandas indicators and next-day historical labels
-                +--> LSTM sequence model -> probability(next close is up)
-                +--> RF holdout metrics, then full-data RF fit
-                +--> XGBoost comparison, if available
-                +--> technical rule score
-        |
-Weighted fusion -> threshold -> JSON evidence and summaries
-        +--> separate rule-based backtest
-        |
-React renders result and saves it to browser local storage
-```
-
-The browser never needs the NewsAPI secret; the backend contacts the provider. The charting pipeline shares data display with analysis but does not alter model training.
-
-## 27. Evaluation gaps and honest interpretation
-
-“Walk-forward” can describe different procedures. Here, the backtest advances through dates but uses a fixed rule; RF/XGBoost quality uses one chronological holdout. Neither is a full rolling retraining evaluation of the entire LSTM + RF + sentiment ensemble described in the proposal.
-
-There is a timing issue in the current rule-based backtest: at row `i`, the position uses indicators through that row's close, then is applied to the return ending at that same row. If an order is placed after observing the close, the return from the prior close to row `i` has already occurred. The simulation should shift the position to the next return or define an executable decision price/time. Costs are simplified proportional charges when the position changes.
-
-Historical sentiment has another limitation. Current news is fetched at request time and one aggregate score is attached to historical rows. The app does not reconstruct point-in-time news for each date. Historical classifier metrics therefore must not be read as date-correct news evaluation. A rigorous system would timestamp and store articles and only use articles published by each historical decision time.
-
-To close these gaps: define decision time and execution price; shift holdings so a signal earns only later returns; use point-in-time news or exclude sentiment from historical training; fit scalers within each chronological fold; generate out-of-fold LSTM features for the classifier; retrain all ML stages inside repeated expanding/rolling folds; compare to buy-and-hold and a genuine lag-1 direction benchmark; include costs; and report variation across periods and tickers.
-
-## 28. Setup, reproducibility, and delivery checklist
-
-### Windows PowerShell
-
-Run from the project root. These commands make a local environment, install backend packages, create a private environment file, and start FastAPI:
-
-```powershell
-py -3.12 -m venv .venv
+cd backend
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r backend\requirements.txt
-Copy-Item backend\.env.example backend\.env
-python -m uvicorn backend.main:app --reload --port 8000
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env  # only if .env does not already exist
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open a second PowerShell terminal in the project root:
+In a second terminal:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. API health is at `http://127.0.0.1:8000/api/health`; interactive API documentation is at `http://127.0.0.1:8000/docs`. Stop each process with Ctrl+C. The `.bat` launchers are convenience scripts for an already installed local environment.
-
-### macOS or Linux
+### macOS / Linux manual setup
 
 ```bash
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env
-python -m uvicorn backend.main:app --reload --port 8000
+python -m pip install -r requirements.txt
+cp .env.example .env  # only if .env does not already exist
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 In a second terminal:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. TensorFlow support depends on operating system, architecture, and Python release. If TensorFlow cannot load, the LSTM falls back to 0.5. First use of FinBERT can download model weights and needs internet, disk space, and memory. Provider/package failures can make the displayed output incomplete.
+TensorFlow support depends on operating system and Python version. The app has a neutral LSTM fallback if TensorFlow cannot load, but the Random Forest/FinBERT dependency paths still need their packages and provider access. First FinBERT use may download model weights.
 
-### Environment key and reproducibility
+## 13. Configuration
 
-`backend/.env.example` is only a template. Copy it to `backend/.env`, then optionally add `NEWS_API_KEY=...`. Keep this file out of frontend variables, screenshots, reports, and version control. Without a key, Yahoo sources are still attempted.
+Create `backend/.env` from `.env.example` and keep it private. Current settings:
 
-For a reproducible analysis, record ticker syntax, horizon, `as_of` date, tuning values, Python and package versions, model dependency availability, headlines/provider, and evaluation dates. Providers can change data after a request. This project does not save an immutable run, model checkpoint, market-data snapshot, or historical news snapshot, so a screenshot alone cannot reproduce a prediction exactly.
+| Setting | Default / purpose |
+|---|---|
+| `SUPABASE_URL` | Hosted project URL; blank means local JSON fallback. |
+| `SUPABASE_SECRET_KEY` | Backend-only secret key; blank means local fallback. |
+| `MARKET_DATA_REFRESH_ENABLED` | `true`; set `false` to disable the scheduler. |
+| `MARKET_DATA_REFRESH_MINUTES` | `360`; job cadence, clamped to a minimum of five minutes. |
+| `MARKET_DATA_SYMBOLS` | `AAPL`; comma-separated symbols for scheduled refresh. |
+| `MARKET_DATA_CACHE_TTL_SECONDS` | `900`; daily history cache TTL; `0` disables it. |
+| `NEWS_API_KEY` | Optional NewsAPI key; Yahoo news remains a fallback. |
+| `FINBERT_MODEL` | Optional Transformers model name; default `ProsusAI/finbert`. |
+| `DEEPSIGNAL_ARTIFACT_DIR` | Optional model artifact folder override. |
+| `CORS_ORIGINS` | Allowed origins for non-Vite deployment; default localhost Vite URL. |
+
+Model and backtest values are managed through the Tuning page/API and saved in `backend/tuning_config.json`. Current defaults and accepted ranges:
+
+| Setting | Default | Accepted range |
+|---|---:|---:|
+| LSTM lookback | 30 | 10–120 |
+| LSTM units | 48 | 8–256 |
+| LSTM epochs | 6 | 1–100 |
+| Random Forest trees | 250 | 50–1,000 |
+| Transaction cost | 0.06% | 0–2% |
+| Slippage | 0.04% | 0–2% |
+
+When live model training or preprocessing code changes, increment `PREDICTION_MODEL_CODE_VERSION` in `backend/main.py`; that makes the new identity avoid reusing artifacts created by older code. Keep the feature and hybrid versions accurate when their corresponding behavior changes.
+
+## 14. Validation and troubleshooting
+
+### Run the backend tests
+
+From the project root in PowerShell:
+
+```powershell
+.\.venv\Scripts\python -m pip install -r backend/requirements-dev.txt
+python -m unittest discover -s backend/tests -v
+```
+
+The focused suite covers cache behavior, data/storage handling, model artifacts, hybrid math, backtesting, scheduler behavior, API routes, and input validation. Tests use mocks where needed so normal test runs do not need live market/news calls. Run the suite after code changes when you want verification.
+
+### Useful checks
+
+- Backend health: `http://localhost:8000/api/health`
+- Interactive API docs: `http://localhost:8000/docs`
+- Storage mode/connection: `http://localhost:8000/api/storage/status`
+- Scheduler status: `http://localhost:8000/api/jobs/market-data`
+- Cache status: `http://localhost:8000/api/cache/status`
+- Saved model versions: `http://localhost:8000/api/models`
+- Saved AAPL predictions: `http://localhost:8000/api/history/predictions?symbol=AAPL`
+- Saved experiment reports: `http://localhost:8000/api/history/experiments`
+
+### Common problems
+
+| Symptom | Likely cause / next check |
+|---|---|
+| Frontend loads but API calls fail | Ensure the backend window is running on port 8000; restart the backend if its console shows an import or dependency error. |
+| `No market data found` | Check ticker spelling/market suffix, Yahoo availability, network access, and provider throttling. |
+| Supabase says `incomplete` or `invalid_url` | Check both settings in `backend/.env`, then restart. Ensure SQL migrations ran in the same Supabase project. |
+| `PGRST205` table/schema cache error | Apply the referenced SQL migration to the correct project, then reload the Supabase schema cache/restart the backend. |
+| Job status is running but last run failed | `running` means the scheduler thread is active; inspect `last_run.status`, `failures`, storage error, and backend logs. |
+| Empty backend prediction/experiment history | Create a prediction/evaluation/backtest through the API after connecting storage. Browser-only signals do not populate these API endpoints. |
+| Model artifact load returns method not allowed | The route requires POST. A browser address bar sends GET; use PowerShell `Invoke-RestMethod -Method Post` or the API docs. Substitute a real version ID, not the literal placeholder. |
+| LSTM probability is neutral | TensorFlow could not import or there were too few sequences. Check artifact model status and Python/TensorFlow compatibility. |
+| Company name does not appear | Wait briefly after entering the symbol; verify backend connectivity and Yahoo metadata for that symbol. The ticker may still be usable even if no display name is found. |
+| First analysis is slow | Initial fitting and/or model loading, FinBERT download/load, and provider calls can take time. Later requests can reuse matching model artifacts and in-process caches. |
+
+## 15. Security, privacy, and boundaries
+
+- Keep `backend/.env` and Supabase secrets out of Git, screenshots, browser developer settings, and frontend bundles. `.gitignore` excludes the local backend `.env`.
+- The backend uses the Supabase secret only in server-side REST headers. SQL enables RLS and restricts table permissions to the service role.
+- This project has no user login, tenant boundary, brokerage connection, order execution, or public production hardening. Do not expose the backend or service secret as a public multi-user service without adding authentication, authorization, rate limiting, secret management, and operational controls.
+- Browser `localStorage` holds theme, selected ticker, and locally saved signal copies. It is browser/device-specific and can be cleared by the user.
+- Provider requests send ticker queries to Yahoo Finance and, when configured, NewsAPI. Avoid treating personal information as input.
+- Supabase is optional; without it, local JSON reports, model artifacts, cache, and browser history have different backup and persistence scopes.
+
+## 16. Current limitations and future work
+
+These are material distinctions to state in demonstrations and reports:
+
+1. **Daily, provider-dependent prices:** This is not an exchange-grade real-time feed. Yahoo may delay or revise data. The “Live” badge refers to periodic interface/status refresh, not live tick data.
+2. **Forecast horizon:** LSTM/RF/hybrid direction target is one session. Longer horizon choices scale a heuristic change estimate; they do not create independently trained 1-week or 1-month models.
+3. **Not a trading recommendation:** Signal thresholds, technical points, sentiment mapping, and confidence display are heuristic and not calibrated to realized profit probability.
+4. **Historical news alignment:** Live headline sentiment is not reconstructed point-in-time for historical dates. The dedicated historical hybrid evaluation uses neutral news sentiment.
+5. **Single-window evaluation:** The report has chronological train/validation/test windows and baselines but is not a comprehensive repeated walk-forward retraining study across many market regimes and tickers.
+6. **Live LSTM validation:** The live scaler is fit on the feature window before its internal validation split. Dedicated evaluation fits the scaler on training rows only; prefer that report when discussing out-of-sample model assessment.
+7. **Backtest separation:** The backtest tests the deterministic technical strategy, not the exact live model hybrid. Costs, fractional shares, fills, and long-only position sizing are simplified assumptions.
+8. **Persistence boundaries:** Artifact binaries remain local. Database rows record model-version identifiers but do not automatically move artifact files to Supabase. Browser signals are not automatically imported to backend history.
+9. **Prototype operations:** Scheduler/cache are in-process and local to one backend instance. There is no distributed worker, job queue, authentication, or deployment-grade monitoring.
+10. **Optional dependencies/providers:** XGBoost/SHAP failures are tolerated, FinBERT can be unavailable, and news or company metadata can be missing without stopping all core features.
+
+Reasonable next steps for a more rigorous research system include repeated rolling/expanding-window tests across multiple tickers, point-in-time news archives, calibrated probability evaluation, ablation studies for hybrid components, stronger price-adjusted execution assumptions, and deployment security. Add these only with a clearly defined research objective; more complexity alone does not establish model quality.
+
+## 17. Glossary
+
+| Term | Simple meaning |
+|---|---|
+| OHLCV | Open, High, Low, Close, and Volume market bar fields. |
+| Ticker / symbol | Short identifier for a listed security, such as `AAPL`. |
+| Feature | A numeric input calculated from market data for a model. |
+| Target / label | The outcome the model is trained to estimate; here, next-session up or down. |
+| LSTM | A neural network architecture designed to process ordered sequences. |
+| Random Forest | An ensemble of decision trees for classification. |
+| FinBERT | A finance-oriented pretrained language model used here to score headlines. |
+| Hybrid | A versioned rule that combines compatible component outputs. |
+| Holdout | Later historical rows kept out of a model's fitting for evaluation. |
+| Data fingerprint | A hash used to identify the exact input price window. |
+| Artifact | Saved fitted model/preprocessor files plus the metadata needed to identify them. |
+| Backtest | Historical simulation with defined signal timing, execution, and costs. |
+| Slippage | Difference between a reference price and a less favorable assumed fill. |
+| TTL cache | Temporary stored response that expires after a configured time. |
+| Walk-forward | Testing in time order so decisions do not use future rows. |

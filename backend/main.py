@@ -1,5 +1,8 @@
 import json
+import hashlib
 import os
+import re
+import time
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Optional
@@ -8,6 +11,22 @@ import numpy as np
 import pandas as pd
 import requests
 import yfinance as yf
+try:  # Support both ``uvicorn main:app`` and ``from backend import main``.
+    from .evaluation import evaluate_direction
+    from .hybrid import HYBRID_VERSION, HYBRID_WEIGHTS, combine_probabilities
+    from .backtesting import STRATEGY_VERSION, run_backtest
+    from . import database as storage
+    from . import scheduler
+    from . import cache as response_cache
+    from . import model_registry
+except ImportError:
+    from evaluation import evaluate_direction
+    from hybrid import HYBRID_VERSION, HYBRID_WEIGHTS, combine_probabilities
+    from backtesting import STRATEGY_VERSION, run_backtest
+    import database as storage
+    import scheduler
+    import cache as response_cache
+    import model_registry
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +41,20 @@ app = FastAPI(title="DeepSignal Hybrid Stock Prediction API", version="1.0.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
+
+@app.on_event("startup")
+def start_background_jobs():
+    scheduler.start_scheduler()
+
+
+@app.on_event("shutdown")
+def stop_background_jobs():
+    scheduler.stop_scheduler()
+
 FEATURES = ["return_1d", "return_5d", "sma20_gap", "sma50_gap", "rsi", "macd", "macd_signal", "bb_position", "volume_change", "sentiment"]
+# Sentiment and LSTM probabilities are combined by the hybrid after their
+# independent predictions; the forest is trained only on price/volume inputs.
+CLASSIFIER_FEATURES = [feature for feature in FEATURES if feature != "sentiment"]
 TUNING_CONFIG = {
     "lookback": 30,
     "lstm_units": 48,
@@ -54,9 +86,26 @@ def clean_symbol(symbol: str) -> str:
     return symbol.strip().upper().replace(" ", "")
 
 
-def download_history(symbol: str, period: str = "3y") -> pd.DataFrame:
+def _market_data_cache_ttl():
+    try:
+        return max(0, min(86400, int(os.getenv("MARKET_DATA_CACHE_TTL_SECONDS", "900"))))
+    except ValueError:
+        return 900
+
+
+def download_history(symbol: str, period: str = "3y", *, force_refresh: bool = False) -> pd.DataFrame:
+    symbol = clean_symbol(symbol)
+    key = f"ohlcv:yahoo-auto-adjust-v1:{symbol}:1d:{period}"
+    if not force_refresh:
+        cached = response_cache.cache.get(key)
+        if cached is not response_cache.MISSING:
+            return cached
     t = yf.Ticker(symbol)
-    df = t.history(period=period, interval="1d", auto_adjust=True, actions=False)
+    provider_started = time.perf_counter()
+    try:
+        df = t.history(period=period, interval="1d", auto_adjust=True, actions=False)
+    finally:
+        response_cache.cache.record_provider_call(time.perf_counter() - provider_started)
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail=f"No market data found for {symbol}.")
     df = df.reset_index()
@@ -64,10 +113,27 @@ def download_history(symbol: str, period: str = "3y") -> pd.DataFrame:
     if "date" not in df.columns:
         raise HTTPException(status_code=502, detail="Market provider returned no date column.")
     df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_localize(None)
-    return df[["date", "open", "high", "low", "close", "volume"]].dropna().copy()
+    result = df[["date", "open", "high", "low", "close", "volume"]].dropna().copy()
+    response_cache.cache.set(key, result, _market_data_cache_ttl())
+    return result
+
+
+FEATURE_CODE_VERSION = "technical-indicators-v1"
+PREDICTION_MODEL_CODE_VERSION = "live-direction-models-v1"
+
+
+def _feature_cache_key(df: pd.DataFrame) -> str:
+    digest = hashlib.sha256()
+    digest.update("|".join(map(str, df.columns)).encode("utf-8"))
+    digest.update(pd.util.hash_pandas_object(df, index=True).values.tobytes())
+    return f"features:{FEATURE_CODE_VERSION}:{digest.hexdigest()}"
 
 
 def indicators(df: pd.DataFrame) -> pd.DataFrame:
+    key = _feature_cache_key(df)
+    cached = response_cache.cache.get(key)
+    if cached is not response_cache.MISSING:
+        return cached
     out = df.copy()
     close = out["close"]
     out["sma20"] = close.rolling(20).mean()
@@ -90,6 +156,7 @@ def indicators(df: pd.DataFrame) -> pd.DataFrame:
     out["sma50_gap"] = close / out["sma50"] - 1
     out["bb_position"] = (close - out["bb_lower"]) / (out["bb_upper"] - out["bb_lower"])
     out["volume_change"] = out["volume"].pct_change().replace([np.inf, -np.inf], np.nan)
+    response_cache.cache.set(key, out, 86400)
     return out
 
 
@@ -205,7 +272,7 @@ def make_training_frame(df: pd.DataFrame, sentiment: float):
     return x
 
 
-def lstm_direction(frame: pd.DataFrame, lookback=None):
+def lstm_direction(frame: pd.DataFrame, lookback=None, *, model_bundle=None, artifact_capture=None):
     # Lazy import keeps non-model endpoints fast.
     try:
         from tensorflow.keras import Sequential
@@ -214,11 +281,20 @@ def lstm_direction(frame: pd.DataFrame, lookback=None):
     except (ImportError, OSError):
         # TensorFlow may be unavailable on some local Python installations.
         # Keep the hybrid prediction endpoint usable with a neutral LSTM input.
+        if artifact_capture is not None:
+            artifact_capture.setdefault("statuses", {})["lstm"] = "tensorflow_unavailable_neutral_fallback"
         return 0.5
 
     lookback = lookback or TUNING_CONFIG["lookback"]
     cols = ["close", "sma20", "sma50", "rsi", "macd", "bb_upper", "bb_lower"]
     data = frame[cols].dropna().values
+    if model_bundle and "lstm" in model_bundle["models"]:
+        model = model_bundle["models"]["lstm"]
+        scaler = model_bundle["preprocessors"]["lstm_scaler"]
+        scaled = scaler.transform(data).astype(np.float32)
+        if len(scaled) < lookback:
+            raise ValueError("Saved LSTM artifact needs more rows than the current input provides.")
+        return float(model.predict(scaled[-lookback:][None, ...], verbose=0)[0][0])
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(data)
     X, y = [], []
@@ -226,30 +302,53 @@ def lstm_direction(frame: pd.DataFrame, lookback=None):
         X.append(scaled[i-lookback+1:i+1])
         y.append(1 if frame.iloc[i+1]["close"] > frame.iloc[i]["close"] else 0)
     if len(X) < 80:
+        if artifact_capture is not None:
+            artifact_capture.setdefault("statuses", {})["lstm"] = "insufficient_training_sequences_neutral_fallback"
         return 0.5
     X, y = np.asarray(X, dtype=np.float32), np.asarray(y, dtype=np.float32)
     split = max(int(len(X) * 0.85), len(X)-40)
+    import tensorflow as tf
+    tf.keras.utils.set_random_seed(42)
     model = Sequential([LSTM(TUNING_CONFIG["lstm_units"], input_shape=(X.shape[1], X.shape[2])), Dropout(0.2), Dense(16, activation="relu"), Dense(1, activation="sigmoid")])
     model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-    model.fit(X[:split], y[:split], validation_data=(X[split:], y[split:]), epochs=TUNING_CONFIG["epochs"], batch_size=32, verbose=0, callbacks=[EarlyStopping(patience=2, restore_best_weights=True)])
+    history = model.fit(X[:split], y[:split], validation_data=(X[split:], y[split:]), epochs=TUNING_CONFIG["epochs"], batch_size=32, verbose=0, callbacks=[EarlyStopping(patience=2, restore_best_weights=True)])
     latest = scaled[-lookback:][None, ...]
+    if artifact_capture is not None:
+        artifact_capture.setdefault("keras_models", {})["lstm"] = model
+        artifact_capture.setdefault("preprocessors", {})["lstm_scaler"] = scaler
+        artifact_capture.setdefault("statuses", {})["lstm"] = "trained"
+        validation_accuracy = history.history.get("val_accuracy", [])
+        artifact_capture.setdefault("validation_metrics", {})["lstm"] = {
+            "best_validation_accuracy": float(max(validation_accuracy)) if validation_accuracy else None,
+            "epochs_completed": len(history.history.get("loss", [])),
+        }
     return float(model.predict(latest, verbose=0)[0][0])
 
 
-def classifier_prediction(frame: pd.DataFrame, lstm_prob: float):
+def classifier_prediction(frame: pd.DataFrame, *, model_bundle=None, artifact_capture=None):
     train = frame.copy()
-    # Training proxy: rolling 5-day momentum is intentionally lagged and is not the target itself.
-    train["lstm_prob"] = 1 / (1 + np.exp(-train["return_5d"].fillna(0) * 25))
-    cols = FEATURES + ["lstm_prob"]
+    cols = CLASSIFIER_FEATURES
     latest = train[cols].iloc[-1].to_dict()
     train = train.dropna(subset=cols + ["target"])
     if len(train) < 100:
-        return "hold", 0.5, {c: 0.0 for c in cols}, {
+        if artifact_capture is not None:
+            artifact_capture.setdefault("statuses", {})["random_forest"] = "insufficient_samples_neutral_fallback"
+        return 0.5, {c: 0.0 for c in cols}, {
             "random_forest": {"accuracy": None, "balanced_accuracy": None},
             "xgboost": {"accuracy": None},
             "evaluation": {"method": "chronological_holdout", "status": "insufficient_samples", "train_samples": int(len(train)), "test_samples": 0},
             "shap": {},
         }
+
+    if model_bundle and "random_forest" in model_bundle["models"]:
+        model = model_bundle["models"]["random_forest"]
+        prob_up = float(model.predict_proba(pd.DataFrame([latest]))[0][list(model.classes_).index(1)])
+        saved = model_bundle["metadata"].get("inference_metadata", {})
+        return (
+            prob_up,
+            saved.get("feature_importance", {column: 0.0 for column in cols}),
+            saved.get("model_comparison", {"random_forest": {"accuracy": None, "balanced_accuracy": None}}),
+        )
 
     # Keep the newest observations out of fitting when reporting quality.
     # The chronological split better reflects future use than scoring on rows
@@ -268,9 +367,11 @@ def classifier_prediction(frame: pd.DataFrame, lstm_prob: float):
     # Refit all labeled rows after evaluation for the current live prediction.
     rf = RandomForestClassifier(**rf_options)
     rf.fit(train[cols], train["target"])
-    latest["lstm_prob"] = lstm_prob
     prob_up = float(rf.predict_proba(pd.DataFrame([latest]))[0][1])
     importance = {c: round(float(v), 4) for c, v in zip(cols, rf.feature_importances_)}
+    if artifact_capture is not None:
+        artifact_capture.setdefault("models", {})["random_forest"] = rf
+        artifact_capture.setdefault("statuses", {})["random_forest"] = "trained"
     model_comparison = {
         "random_forest": {"accuracy": rf_accuracy, "balanced_accuracy": rf_balanced_accuracy},
         "evaluation": {
@@ -292,10 +393,14 @@ def classifier_prediction(frame: pd.DataFrame, lstm_prob: float):
         xgb_balanced_accuracy = round(float(balanced_accuracy_score(holdout_rows["target"], xgb_holdout) * 100), 2)
         xgb = XGBClassifier(**xgb_options)
         xgb.fit(train[cols], train["target"])
+        if artifact_capture is not None:
+            artifact_capture.setdefault("models", {})["xgboost"] = xgb
+            artifact_capture.setdefault("statuses", {})["xgboost"] = "trained"
         xgb_prob = float(xgb.predict_proba(pd.DataFrame([latest]))[0][1])
         model_comparison["xgboost"] = {"accuracy": xgb_accuracy, "balanced_accuracy": xgb_balanced_accuracy, "probability_up": round(xgb_prob, 4)}
     except Exception:
-        pass
+        if artifact_capture is not None:
+            artifact_capture.setdefault("statuses", {})["xgboost"] = "unavailable_or_failed"
     # SHAP local explanation for the latest feature vector.
     try:
         import shap
@@ -308,17 +413,7 @@ def classifier_prediction(frame: pd.DataFrame, lstm_prob: float):
         model_comparison["shap"] = {c: round(float(v), 5) for c, v in zip(cols, vals)}
     except Exception:
         model_comparison["shap"] = {}
-    return ("buy" if prob_up >= 0.60 else "sell" if prob_up <= 0.40 else "hold"), prob_up, importance, model_comparison
-
-
-def metrics(curve):
-    values = np.asarray(curve, dtype=float)
-    total = (values[-1] / values[0] - 1) * 100
-    peak = np.maximum.accumulate(values)
-    maxdd = np.min((values - peak) / peak) * 100
-    returns = pd.Series(values).pct_change().dropna()
-    sharpe = (returns.mean() / (returns.std() or 1e-9)) * np.sqrt(252)
-    return {"total_return": round(float(total), 2), "sharpe": round(float(sharpe), 2), "max_drawdown": round(float(maxdd), 2)}
+    return prob_up, importance, model_comparison
 
 
 def signal_from_score(score: float) -> str:
@@ -334,48 +429,130 @@ def signal_from_score(score: float) -> str:
     return "hold"
 
 
-def walk_forward(df: pd.DataFrame):
-    d = indicators(df).dropna().reset_index(drop=True)
-    close = d["close"].values
-    n = len(d)
-    window = 180
-    if n < window + 30:
-        window = max(60, n // 2)
-    strategy = [100.0]
-    bh = [100.0]
-    naive = [100.0]
-    pos = 0
-    prev_pos = 0
-    for i in range(1, n):
-        if i >= window:
-            mom = close[i-5] / close[i-10] - 1 if i >= 10 else 0
-            rsi = d.iloc[i]["rsi"]
-            pos = 1 if mom > 0.006 and rsi < 72 else -1 if mom < -0.006 and rsi > 28 else 0
-        ret = close[i] / close[i-1] - 1
-        changed = pos != prev_pos
-        cost = (TUNING_CONFIG["transaction_cost_pct"] + TUNING_CONFIG["slippage_pct"]) / 100 if changed else 0.0
-        strategy.append(strategy[-1] * (1 + pos * ret - cost))
-        bh.append(bh[-1] * (1 + ret))
-        naive.append(naive[-1])
-        prev_pos = pos
-    return {
-        "dates": [d.iloc[i]["date"].strftime("%Y-%m-%d") for i in range(n)],
-        "hybrid": [round(x, 2) for x in strategy],
-        "buy_hold": [round(x, 2) for x in bh],
-        "naive": naive,
-        "summary": {"hybrid": metrics(strategy), "buy_hold": metrics(bh), "naive": metrics(naive)},
-    }
+def walk_forward(df: pd.DataFrame, symbol="UNKNOWN"):
+    """Generate after-close technical signals and delegate execution to the engine."""
+    featured = indicators(df).reset_index(drop=True)
+    signals = pd.DataFrame({"date": featured["date"], "signal": "HOLD"})
+    buy = (featured["return_5d"] > 0.006) & (featured["rsi"] < 72)
+    sell = (featured["return_5d"] < -0.006) & (featured["rsi"] > 28)
+    signals.loc[buy, "signal"] = "BUY"
+    signals.loc[sell, "signal"] = "SELL"
+    return run_backtest(
+        df,
+        signals,
+        symbol=symbol,
+        config=TUNING_CONFIG.copy(),
+        strategy_name="Five-day momentum and RSI; long-only",
+        strategy_version=STRATEGY_VERSION,
+        strategy_parameters={
+            "buy_when": "return_5d > 0.006 and RSI < 72",
+            "sell_when": "return_5d < -0.006 and RSI > 28",
+            "otherwise": "HOLD",
+        },
+    )
 
 
 def build_prediction(symbol: str, timeframe: str):
     symbol = clean_symbol(symbol)
     raw = download_history(symbol)
+    data_retrieved_at = datetime.now(timezone.utc).isoformat()
+    market_timestamp = pd.Timestamp(raw.iloc[-1]["date"]).tz_localize("UTC").isoformat()
+    market_data_hash = hashlib.sha256(
+        raw[["date", "open", "high", "low", "close", "volume"]]
+        .to_csv(index=False, date_format="%Y-%m-%dT%H:%M:%S")
+        .encode("utf-8")
+    ).hexdigest()
     feat = indicators(raw)
+    model_identity = {
+        "symbol": symbol,
+        "market_data_sha256": market_data_hash,
+        "training_window": {
+            "start": raw.iloc[0]["date"].strftime("%Y-%m-%d"),
+            "end": raw.iloc[-1]["date"].strftime("%Y-%m-%d"),
+            "rows": int(len(raw)),
+        },
+        "target": "next session close > current session close; decision after current close",
+        "target_horizon_sessions": 1,
+        "features": {
+            "lstm_ordered": ["close", "sma20", "sma50", "rsi", "macd", "bb_upper", "bb_lower"],
+            "random_forest_ordered": CLASSIFIER_FEATURES,
+        },
+        "preprocessing_version": "lstm-minmax-fit-on-training-window-v1; random-forest-drop-missing-rows-v1",
+        "feature_code_version": FEATURE_CODE_VERSION,
+        "prediction_model_code_version": PREDICTION_MODEL_CODE_VERSION,
+        "hybrid_version": HYBRID_VERSION,
+        "sentiment_model": os.getenv("FINBERT_MODEL", "ProsusAI/finbert"),
+        "configuration": TUNING_CONFIG.copy(),
+        "random_seeds": {"lstm": 42, "random_forest": 42, "xgboost": 42},
+        "package_versions": model_registry.package_versions(),
+    }
+    model_version = model_registry.version_for(model_identity)
+    saved_bundle = model_registry.load_version(model_version) if model_registry.has_version(model_version) else None
+    artifact_capture = {"models": {}, "preprocessors": {}, "keras_models": {}, "statuses": {}}
     articles = get_news(symbol)
     sentiment, news = sentiment_score(articles)
     frame = make_training_frame(raw, sentiment)
-    lstm_prob = lstm_direction(feat.dropna().reset_index(drop=True))
-    signal, rf_prob, importance, model_comparison = classifier_prediction(frame, lstm_prob)
+    lstm_prob = lstm_direction(
+        feat.dropna().reset_index(drop=True), model_bundle=saved_bundle, artifact_capture=artifact_capture
+    )
+    rf_prob, importance, model_comparison = classifier_prediction(
+        frame, model_bundle=saved_bundle, artifact_capture=artifact_capture
+    )
+    if saved_bundle is None:
+        artifact_metadata = {
+            "symbol": symbol,
+            "data": {
+                "source": "Yahoo Finance adjusted daily OHLCV",
+                **model_identity["training_window"],
+                "sha256": market_data_hash,
+            },
+            "target": {
+                "name": "next_session_up_direction",
+                "definition": model_identity["target"],
+                "model_horizon_sessions": 1,
+                "decision_timestamp_convention": "After the current exchange session close; all bars are UTC-normalized.",
+            },
+            "features": model_identity["features"],
+            "input_shapes": {
+                "lstm": [int(TUNING_CONFIG["lookback"]), 7],
+                "random_forest": [len(CLASSIFIER_FEATURES)],
+            },
+            "preprocessing": {
+                "lstm": "MinMaxScaler is fitted on the available ordered training window and saved as lstm_scaler.joblib.",
+                "random_forest": "Rows with missing required features or target are dropped; no scaling is used.",
+            },
+            "hyperparameters": {
+                "lstm": {
+                    "lookback": int(TUNING_CONFIG["lookback"]),
+                    "units": int(TUNING_CONFIG["lstm_units"]),
+                    "epochs": int(TUNING_CONFIG["epochs"]),
+                    "dropout": 0.2,
+                    "batch_size": 32,
+                    "optimizer": "adam",
+                    "loss": "binary_crossentropy",
+                },
+                "random_forest": {
+                    "n_estimators": int(TUNING_CONFIG["rf_trees"]),
+                    "max_depth": 7,
+                    "min_samples_leaf": 4,
+                    "class_weight": "balanced",
+                },
+            },
+            "random_seeds": model_identity["random_seeds"],
+            "package_versions": model_identity["package_versions"],
+            "hybrid": {"version": HYBRID_VERSION, "weights": HYBRID_WEIGHTS.copy()},
+            "sentiment_model": {
+                "name": model_identity["sentiment_model"],
+                "weights_location": "Pretrained model is loaded from the Transformers cache; it is not copied into this local trained-model artifact.",
+            },
+            "validation_metrics": {
+                "random_forest": model_comparison.get("random_forest", {}),
+                **artifact_capture.get("validation_metrics", {}),
+            },
+            "inference_metadata": {"feature_importance": importance, "model_comparison": model_comparison},
+            "model_code_version": PREDICTION_MODEL_CODE_VERSION,
+        }
+        model_registry.save_version(model_version, model_identity, artifact_capture, artifact_metadata)
     lstm_prob = float(np.clip(lstm_prob, 0, 1)) if np.isfinite(lstm_prob) else 0.5
     rf_prob = float(np.clip(rf_prob, 0, 1)) if np.isfinite(rf_prob) else 0.5
     sentiment = float(np.clip(sentiment, -1, 1)) if np.isfinite(sentiment) else 0.0
@@ -411,26 +588,35 @@ def build_prediction(symbol: str, timeframe: str):
     else:
         technical_factors.append("RSI/MACD reversal condition is not active")
     technical_probability = (float(np.clip(technical_score, -1, 1)) + 1) / 2
-    sentiment_probability = (sentiment + 1) / 2
-    components = {
-        "lstm": {"probability_up": lstm_prob, "weight": 0.50, "weighted_contribution": 0.50 * lstm_prob},
-        "random_forest": {"probability_up": rf_prob, "weight": 0.30, "weighted_contribution": 0.30 * rf_prob},
-        "finbert": {"sentiment_score": sentiment, "probability_up": sentiment_probability, "weight": 0.10, "weighted_contribution": 0.10 * sentiment_probability},
-        "technical": {"score": float(np.clip(technical_score, -1, 1)), "probability_up": technical_probability, "weight": 0.10, "weighted_contribution": 0.10 * technical_probability, "factors": technical_factors},
-    }
-    fused = float(np.clip(
-        sum(component["weighted_contribution"] for component in components.values()),
-        0, 1,
-    ))
-    signal = signal_from_score(fused)
+    hybrid = combine_probabilities(lstm_prob, rf_prob, sentiment, technical_probability)
+    fused = hybrid["probability_up"]
+    signal = hybrid["signal"]
+    components = hybrid["components"]
+    components["finbert"]["sentiment_score"] = sentiment
+    components["technical"]["score"] = float(np.clip(technical_score, -1, 1))
+    components["technical"]["factors"] = technical_factors
     horizon_days = {"1D":1,"1W":5,"1M":21,"3M":63}.get(timeframe,1)
     daily_expected = (fused - 0.5) * 0.018 + latest["return_5d"] * 0.20
     predicted_change = float(daily_expected * np.sqrt(horizon_days) * 100)
     trend = "bullish" if fused >= 0.54 else "bearish" if fused <= 0.46 else "neutral"
-    confidence = float(50 + abs(fused - 0.5) * 100)
+    confidence = float(50 + (hybrid["confidence"] - 0.5) * 100)
+    prediction_timestamp = datetime.now(timezone.utc).isoformat()
     return {
+        "model_version": model_version,
         "stock_symbol": symbol,
         "company_name": symbol,
+        "prediction_timestamp": prediction_timestamp,
+        "market_data": {
+            "source": "Yahoo Finance",
+            "interval": "1d",
+            "market_timestamp": market_timestamp,
+            "retrieved_at": data_retrieved_at,
+            "window_start": raw.iloc[0]["date"].strftime("%Y-%m-%d"),
+            "window_end": raw.iloc[-1]["date"].strftime("%Y-%m-%d"),
+            "row_count": int(len(raw)),
+            "sha256": market_data_hash,
+            "quality_status": "ok",
+        },
         "as_of": raw.iloc[-1]["date"].strftime("%Y-%m-%d"),
         "latest_close": round(float(raw.iloc[-1]["close"]), 2),
         "signal_type": signal,
@@ -443,6 +629,12 @@ def build_prediction(symbol: str, timeframe: str):
         "signal_explanation": {
             "ensemble_probability_up": round(fused, 4),
             "signal": signal,
+            "hybrid_version": HYBRID_VERSION,
+            "model_version": model_version,
+            "method": hybrid["method"],
+            "target": hybrid["target"],
+            "weights": hybrid["weights"],
+            "sentiment_mapping": hybrid["sentiment_mapping"],
             "components": {
                 name: {
                     **{key: round(value, 4) for key, value in component.items() if isinstance(value, (int, float))},
@@ -455,7 +647,7 @@ def build_prediction(symbol: str, timeframe: str):
         "news": news[:8],
         "feature_importance": importance,
         "model_comparison": model_comparison,
-        "analysis_summary": f"The hybrid model is {trend} for the {timeframe} horizon. It combines the LSTM trend probability, Random Forest classifier, finance-news sentiment and technical indicators using the latest available market bar.",
+        "analysis_summary": f"The hybrid estimates next-session direction as {trend}. The {timeframe} predicted-change figure is a separate heuristic extrapolation. The direction score combines LSTM and Random Forest probabilities with current news sentiment and technical evidence.",
         "risk_factors": ["Market regime shifts can reduce out-of-sample performance.", "Financial data are non-stationary and black-swan events are difficult to model.", "News coverage may be incomplete or delayed.", "The predicted percentage is a model estimate, not a guaranteed return."],
         "model_recommendation": "Use the signal together with the backtest and baseline results rather than as a standalone trading decision.",
         "backtest": walk_forward(raw),
@@ -472,6 +664,38 @@ def get_tuning_config():
     return TUNING_CONFIG.copy()
 
 
+@app.get("/api/models")
+def list_saved_model_versions(limit: int = Query(50, ge=1, le=200)):
+    return model_registry.list_versions(limit)
+
+
+@app.get("/api/models/{model_version}")
+def saved_model_metadata(model_version: str):
+    try:
+        return model_registry.read_metadata(model_version)
+    except model_registry.ModelArtifactError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@app.post("/api/models/{model_version}/load")
+def load_saved_model_version(model_version: str):
+    """Validate and warm a saved version for requests with its exact data identity."""
+    try:
+        bundle = model_registry.load_version(model_version)
+    except model_registry.ModelArtifactError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    metadata = bundle["metadata"]
+    return {
+        "status": "loaded",
+        "model_version": model_version,
+        "symbol": metadata.get("symbol"),
+        "model_statuses": metadata.get("model_statuses", {}),
+        "loaded_components": sorted(bundle["models"]),
+        "artifact_location": metadata.get("artifact_location"),
+        "note": "Predictions reuse this model only when symbol, market-data fingerprint, configuration, code version, and package versions match.",
+    }
+
+
 @app.post("/api/config")
 def save_tuning_config(config: TuningConfig):
     values = config.model_dump()
@@ -484,11 +708,40 @@ def save_tuning_config(config: TuningConfig):
 @app.get("/api/predict/{symbol}")
 def predict(symbol: str, timeframe: str = Query("1D", pattern="^(1D|1W|1M|3M)$")):
     try:
-        return build_prediction(symbol, timeframe)
+        result = build_prediction(symbol, timeframe)
+        fallback_path = os.path.join(os.path.dirname(__file__), "prediction_runs.json")
+        try:
+            result["persistence"] = storage.save_prediction_bundle(result, fallback_path)
+        except storage.StorageError as exc:
+            result["persistence"] = {"status": "failed", "mode": "configured_storage", "message": str(exc)}
+        return result
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/history/predictions")
+def prediction_history(
+    symbol: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+):
+    fallback_path = os.path.join(os.path.dirname(__file__), "prediction_runs.json")
+    try:
+        return storage.list_predictions(symbol, limit, fallback_path)
+    except storage.StorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@app.get("/api/history/experiments")
+def experiment_history(
+    kind: Optional[str] = Query(None, pattern="^(evaluation|backtest)$"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    try:
+        return storage.list_experiments(kind, limit, os.path.dirname(__file__))
+    except storage.StorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.get("/api/history/{symbol}")
@@ -510,9 +763,97 @@ def history(symbol: str, period: str = Query("1y", pattern="^(3mo|6mo|1y|2y|3y)$
     }
 
 
+@app.get("/api/company/{symbol}")
+def company_name(symbol: str):
+    ticker = clean_symbol(symbol)
+    if not re.fullmatch(r"[A-Z0-9.^=-]{1,16}", ticker):
+        raise HTTPException(status_code=422, detail="Enter a valid stock ticker.")
+
+    cache_key = f"company-name:yahoo-v1:{ticker}"
+    cached = response_cache.cache.get(cache_key)
+    if cached is not response_cache.MISSING:
+        return cached
+
+    provider_started = time.perf_counter()
+    try:
+        info = yf.Ticker(ticker).get_info()
+    except Exception:
+        info = {}
+    finally:
+        response_cache.cache.record_provider_call(time.perf_counter() - provider_started)
+
+    name = None
+    if isinstance(info, dict):
+        name = info.get("longName") or info.get("shortName") or info.get("displayName")
+    result = {
+        "symbol": ticker,
+        "company_name": str(name).strip() if name else None,
+        "found": bool(name),
+    }
+    response_cache.cache.set(cache_key, result, 86400 if name else 1800)
+    return result
+
+
 @app.get("/api/backtest/{symbol}")
 def backtest(symbol: str):
-    return walk_forward(download_history(clean_symbol(symbol)))
+    clean = clean_symbol(symbol)
+    raw = download_history(clean)
+    report_path = os.path.join(os.path.dirname(__file__), "backtest_runs.json")
+    report = walk_forward(raw, symbol=clean)
+    try:
+        report["persistence"] = storage.save_experiment(report, "backtest", report_path)
+    except storage.StorageError as exc:
+        report["persistence"] = {"status": "failed", "mode": "configured_storage", "message": str(exc)}
+    return report
+
+
+@app.get("/api/evaluate/{symbol}")
+def evaluate(symbol: str):
+    """Create and persist a repeatable next-session direction evaluation report."""
+    clean = clean_symbol(symbol)
+    raw = download_history(clean, "3y")
+    report_path = os.path.join(os.path.dirname(__file__), "evaluation_runs.json")
+    report = evaluate_direction(clean, raw, TUNING_CONFIG.copy(), None, indicators)
+    try:
+        report["persistence"] = storage.save_experiment(report, "evaluation", report_path)
+    except storage.StorageError as exc:
+        report["persistence"] = {"status": "failed", "mode": "configured_storage", "message": str(exc)}
+    return report
+
+
+@app.get("/api/storage/status")
+def storage_status():
+    try:
+        status = storage.check_connection()
+        if status["status"] == "not_configured":
+            status["mode"] = "local_json_fallback"
+        return status
+    except storage.StorageError as exc:
+        return {"status": "error", "persistent_storage": False, "message": str(exc)}
+
+
+@app.get("/api/jobs/market-data")
+def market_data_job_status():
+    return scheduler.scheduler_status()
+
+
+@app.get("/api/cache/status")
+def cache_status():
+    return {
+        "status": "in_process",
+        "market_data_ttl_seconds": _market_data_cache_ttl(),
+        "feature_ttl_seconds": 86400,
+        "feature_code_version": FEATURE_CODE_VERSION,
+        "cache": response_cache.cache.status(),
+        "note": "Cache is local to this backend process and clears on restart. Predictions are not cached because news and input data can change.",
+    }
+
+
+@app.post("/api/storage/import-local-experiments")
+def import_local_experiments():
+    if storage.configuration_status() != "configured":
+        raise HTTPException(status_code=400, detail="Configure Supabase before importing local experiment reports.")
+    return storage.migrate_local_experiments(os.path.dirname(__file__))
 
 
 @app.get("/api/generalization")
@@ -522,8 +863,8 @@ def generalization():
     for symbol,sector in basket:
         try:
             r=walk_forward(download_history(symbol, "2y"))
-            h=r["summary"]["hybrid"]; b=r["summary"]["buy_hold"]
-            rows.append({"ticker":symbol,"sector":sector,"return":h["total_return"],"sharpe":h["sharpe"],"max_drawdown":h["max_drawdown"],"edge":round(h["total_return"]-b["total_return"],2)})
+            h=r["summary"]["strategy"]; b=r["summary"]["buy_hold"]
+            rows.append({"ticker":symbol,"sector":sector,"return":h["total_return_pct"],"sharpe":h["annualized_sharpe"],"max_drawdown":h["max_drawdown_pct"],"edge":round(h["total_return_pct"]-b["total_return_pct"],2)})
         except Exception as e:
             rows.append({"ticker":symbol,"sector":sector,"error":str(e)})
     return rows

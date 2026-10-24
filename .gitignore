@@ -6,3 +6,9 @@ dist/
 backend/config.json
 backend/.env
 backend/tuning_config.json
+backend/prediction_runs.json
+backend/evaluation_runs.json
+backend/backtest_runs.json
+backend/market_data_bars.json
+backend/job_runs.json
+backend/model_artifacts/
