@@ -13,6 +13,9 @@ import requests
 import yfinance as yf
 try:  # Support both ``uvicorn main:app`` and ``from backend import main``.
     from .evaluation import evaluate_direction
+    from .hybrid_backtesting import run_hybrid_backtest
+    from .regime_detection import estimate_current_regime
+    from .news_alignment import NEWS_ALIGNMENT_VERSION, filter_articles_as_of
     from .hybrid import HYBRID_VERSION, HYBRID_WEIGHTS, combine_probabilities
     from .backtesting import STRATEGY_VERSION, run_backtest
     from . import database as storage
@@ -21,6 +24,9 @@ try:  # Support both ``uvicorn main:app`` and ``from backend import main``.
     from . import model_registry
 except ImportError:
     from evaluation import evaluate_direction
+    from hybrid_backtesting import run_hybrid_backtest
+    from regime_detection import estimate_current_regime
+    from news_alignment import NEWS_ALIGNMENT_VERSION, filter_articles_as_of
     from hybrid import HYBRID_VERSION, HYBRID_WEIGHTS, combine_probabilities
     from backtesting import STRATEGY_VERSION, run_backtest
     import database as storage
@@ -160,26 +166,28 @@ def indicators(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def get_news(symbol: str):
+def get_news(symbol: str, as_of=None, include_alignment=False):
     articles = []
+    cutoff = as_of or datetime.now(timezone.utc)
     search_terms = [symbol.strip()]
     normalized_symbol = re.sub(r"\.(NS|BO)$", "", symbol.strip(), flags=re.IGNORECASE)
     if normalized_symbol and normalized_symbol.casefold() != symbol.strip().casefold():
         search_terms.append(normalized_symbol)
 
-    def add_article(title, published_at=None, source=None, url=None):
+    def add_article(title, published_at=None, source=None, url=None, matched_query=None):
         if not title:
             return
         title = str(title).strip()
         if not title or title.lower() in {"(no title)", "no title"}:
             return
-        if any(item["title"] == title for item in articles):
+        if any(item["title"].casefold() == title.casefold() for item in articles):
             return
         articles.append({
             "title": title,
             "published_at": published_at,
             "source": source or "Financial news",
             "url": url,
+            "matched_query": matched_query,
         })
 
     # Yahoo may index headlines under the issuer name instead of an exchange
@@ -207,6 +215,7 @@ def get_news(symbol: str):
                     item.get("providerPublishTime"),
                     item.get("publisher", "Yahoo Finance"),
                     item.get("link"),
+                    query,
                 )
             for quote in payload.get("quotes", []):
                 issuer_name = quote.get("longname") or quote.get("shortname")
@@ -230,7 +239,7 @@ def get_news(symbol: str):
                 )
                 r.raise_for_status()
                 for a in r.json().get("articles", []):
-                    add_article(a.get("title"), a.get("publishedAt"), (a.get("source") or {}).get("name", "NewsAPI"), a.get("url"))
+                    add_article(a.get("title"), a.get("publishedAt"), (a.get("source") or {}).get("name", "NewsAPI"), a.get("url"), query)
             except Exception:
                 pass
 
@@ -245,12 +254,17 @@ def get_news(symbol: str):
                     content.get("pubDate") or item.get("providerPublishTime"),
                     provider.get("displayName") or item.get("publisher") or "Yahoo Finance",
                     canonical.get("url") or item.get("link"),
+                    symbol,
                 )
                 if len(articles) >= 10:
                     break
         except Exception:
             pass
-    return articles
+    articles, alignment = filter_articles_as_of(
+        articles, cutoff, symbol=symbol,
+        relevance_terms=[symbol, normalized_symbol, *resolved_terms],
+    )
+    return (articles, alignment) if include_alignment else articles
 
 
 @lru_cache(maxsize=1)
@@ -508,7 +522,8 @@ def build_prediction(symbol: str, timeframe: str):
     model_version = model_registry.version_for(model_identity)
     saved_bundle = model_registry.load_version(model_version) if model_registry.has_version(model_version) else None
     artifact_capture = {"models": {}, "preprocessors": {}, "keras_models": {}, "statuses": {}}
-    articles = get_news(symbol)
+    news_cutoff = datetime.now(timezone.utc)
+    articles, news_alignment = get_news(symbol, as_of=news_cutoff, include_alignment=True)
     sentiment, news = sentiment_score(articles)
     frame = make_training_frame(raw, sentiment)
     lstm_prob = lstm_direction(
@@ -619,6 +634,7 @@ def build_prediction(symbol: str, timeframe: str):
     predicted_change = float(daily_expected * np.sqrt(horizon_days) * 100)
     trend = "bullish" if fused >= 0.54 else "bearish" if fused <= 0.46 else "neutral"
     confidence = float(50 + (hybrid["confidence"] - 0.5) * 100)
+    component_dispersion = float(np.std([lstm_prob, rf_prob, technical_probability]))
     prediction_timestamp = datetime.now(timezone.utc).isoformat()
     return {
         "model_version": model_version,
@@ -639,6 +655,21 @@ def build_prediction(symbol: str, timeframe: str):
         "as_of": raw.iloc[-1]["date"].strftime("%Y-%m-%d"),
         "latest_close": round(float(raw.iloc[-1]["close"]), 2),
         "signal_type": signal,
+        "probability_quality": {
+            "raw_direction_probability_up": round(float(fused), 4),
+            "calibrated_direction_probability_up": None,
+            "calibration_status": "unavailable_live_validation_calibrator_not_fitted",
+            "uncertainty": {
+                "type": "component_probability_standard_deviation",
+                "value": round(component_dispersion, 4),
+                "interpretation": "Component disagreement dispersion; not a confidence interval or probability of profit.",
+            },
+            "trading_decision": signal,
+            "decision_status": "raw_uncalibrated_heuristic",
+            "no_trade_status": "unavailable_live_validation_thresholds_not_fitted",
+            "no_trade_decision": None,
+            "no_trade_reason": "No abstention threshold is fitted for live predictions; no No Trade decision was applied.",
+        },
         "confidence": round(confidence, 1),
         "predicted_trend": trend,
         "predicted_change": round(predicted_change, 2),
@@ -664,6 +695,12 @@ def build_prediction(symbol: str, timeframe: str):
         },
         "technical_indicators": {"rsi":round(float(latest["rsi"]),2),"macd":round(float(latest["macd"]),4),"macd_signal":round(float(latest["macd_signal"]),4),"sma_20":round(float(latest["sma20"]),2),"sma_50":round(float(latest["sma50"]),2),"bollinger_upper":round(float(latest["bb_upper"]),2),"bollinger_lower":round(float(latest["bb_lower"]),2)},
         "news": news[:8],
+        "news_alignment": {
+            **news_alignment,
+            "provider_mode": "live_current_search",
+            "historical_archive_used": False,
+            "historical_sentiment_validated": False,
+        },
         "feature_importance": importance,
         "model_comparison": model_comparison,
         "analysis_summary": f"The hybrid estimates next-session direction as {trend}. The {timeframe} predicted-change figure is a separate heuristic extrapolation. The direction score combines LSTM and Random Forest probabilities with current news sentiment and technical evidence.",
@@ -826,18 +863,108 @@ def backtest(symbol: str):
     return report
 
 
+@app.get("/api/backtest/{symbol}/hybrid")
+def hybrid_backtest(symbol: str, mode: Optional[str] = Query(None, pattern="^(fixed|adaptive)$")):
+    """Run the production fixed-weight hybrid on walk-forward OOS dates."""
+    clean = clean_symbol(symbol)
+    raw = download_history(clean, "3y")
+    config = TUNING_CONFIG.copy()
+    config["include_xgboost"] = os.getenv("EVALUATION_INCLUDE_XGBOOST", "false").strip().lower() in {"1", "true", "yes", "on"}
+    default_mode = os.getenv("HYBRID_BACKTEST_MODE", "fixed").strip().lower()
+    if default_mode not in {"fixed", "adaptive"}:
+        default_mode = "fixed"
+    selected_mode = mode if isinstance(mode, str) else default_mode
+    for env_name, config_name, cast, fallback in (
+        ("ADAPTIVE_ENSEMBLE_MIN_WEIGHT", "adaptive_minimum_weight", float, 0.05),
+        ("ADAPTIVE_ENSEMBLE_MAX_WEIGHT", "adaptive_maximum_weight", float, 0.80),
+        ("ADAPTIVE_ENSEMBLE_TEMPERATURE", "adaptive_temperature", float, 8.0),
+        ("ADAPTIVE_MIN_VALIDATION_SAMPLES", "adaptive_minimum_validation_samples", int, 20),
+        ("ADAPTIVE_MIN_REGIME_SAMPLES", "adaptive_minimum_regime_samples", int, 20),
+    ):
+        try:
+            config[config_name] = cast(os.getenv(env_name, str(fallback)))
+        except ValueError:
+            config[config_name] = fallback
+    report = run_hybrid_backtest(clean, raw, config, indicators, selected_mode=selected_mode)
+    if report.get("status") != "ok":
+        return report
+    report_path = os.path.join(os.path.dirname(__file__), "backtest_runs.json")
+    try:
+        report["persistence"] = storage.save_experiment(report, "backtest", report_path)
+    except storage.StorageError as exc:
+        report["persistence"] = {"status": "failed", "mode": "configured_storage", "message": str(exc)}
+    return report
+
+
+@app.get("/api/regime/{symbol}")
+def market_regime(symbol: str):
+    """Estimate the latest causal Gaussian-HMM regime and return provenance."""
+    clean = clean_symbol(symbol)
+    try:
+        raw = download_history(clean, "3y")
+    except Exception as exc:
+        return {
+            "status": "unavailable_data",
+            "symbol": clean,
+            "regime": None,
+            "state_probabilities": {},
+            "model_version": "gaussian-hmm-market-regimes-v1",
+            "fallback_reason": f"market data unavailable: {type(exc).__name__}",
+        }
+    try:
+        report = estimate_current_regime(raw, random_seed=int(TUNING_CONFIG.get("random_seed", 42)))
+    except Exception as exc:
+        report = {
+            "status": "unavailable_model",
+            "regime": None,
+            "state_probabilities": {},
+            "model_version": "gaussian-hmm-market-regimes-v1",
+            "fallback_reason": f"regime estimation failed: {type(exc).__name__}",
+        }
+    report["symbol"] = clean
+    return report
+
+
 @app.get("/api/evaluate/{symbol}")
 def evaluate(symbol: str):
     """Create and persist a repeatable next-session direction evaluation report."""
     clean = clean_symbol(symbol)
-    raw = download_history(clean, "3y")
+    return _evaluate_and_persist(clean)
+
+
+def _evaluate_and_persist(symbol):
+    raw = download_history(symbol, "3y")
     report_path = os.path.join(os.path.dirname(__file__), "evaluation_runs.json")
-    report = evaluate_direction(clean, raw, TUNING_CONFIG.copy(), None, indicators)
+    config = TUNING_CONFIG.copy()
+    config["include_xgboost"] = os.getenv("EVALUATION_INCLUDE_XGBOOST", "false").strip().lower() in {"1", "true", "yes", "on"}
+    report = evaluate_direction(symbol, raw, config, None, indicators)
     try:
         report["persistence"] = storage.save_experiment(report, "evaluation", report_path)
     except storage.StorageError as exc:
         report["persistence"] = {"status": "failed", "mode": "configured_storage", "message": str(exc)}
     return report
+
+
+@app.get("/api/evaluate")
+def evaluate_multiple(symbols: Optional[str] = None):
+    """Evaluate a configurable comma-separated ticker set independently."""
+    requested = symbols or os.getenv("EVALUATION_SYMBOLS", "AAPL,MSFT,NVDA,AMZN,GOOGL")
+    parsed = [clean_symbol(item) for item in requested.split(",") if item.strip()]
+    tickers = list(dict.fromkeys(parsed))
+    if not tickers or len(parsed) > 10 or any(not re.fullmatch(r"[A-Z0-9.^=-]{1,16}", item) for item in tickers):
+        raise HTTPException(status_code=422, detail="Provide between 1 and 10 valid comma-separated ticker symbols.")
+    reports = []
+    for ticker in tickers:
+        try:
+            reports.append(_evaluate_and_persist(ticker))
+        except Exception as exc:
+            reports.append({"status": "error", "symbol": ticker, "error_type": type(exc).__name__})
+    succeeded = sum(report.get("status") == "ok" for report in reports)
+    return {
+        "status": "ok" if succeeded == len(reports) else "partial" if succeeded else "failed",
+        "requested_symbols": tickers,
+        "reports": reports,
+    }
 
 
 @app.get("/api/storage/status")

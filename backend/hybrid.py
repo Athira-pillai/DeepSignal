@@ -15,6 +15,17 @@ HYBRID_VERSION = "weighted-probability-v1"
 HYBRID_WEIGHTS = {"lstm": 0.40, "random_forest": 0.40, "finbert": 0.10, "technical": 0.10}
 
 
+def signal_from_probability(probability_up):
+    """Map an up probability to the production hybrid's shared signal bands."""
+    probability_up = _probability("probability_up", probability_up)
+    return (
+        "strong_buy" if probability_up >= 0.64 else
+        "buy" if probability_up >= 0.54 else
+        "strong_sell" if probability_up <= 0.36 else
+        "sell" if probability_up <= 0.46 else "hold"
+    )
+
+
 def _probability(name, value):
     value = float(value)
     if not math.isfinite(value) or not 0 <= value <= 1:
@@ -39,12 +50,7 @@ def combine_probabilities(lstm_probability, forest_probability, sentiment_score,
         "technical": _probability("technical_probability", technical_probability),
     }
     probability_up = sum(HYBRID_WEIGHTS[key] * value for key, value in components.items())
-    signal = (
-        "strong_buy" if probability_up >= 0.64 else
-        "buy" if probability_up >= 0.54 else
-        "strong_sell" if probability_up <= 0.36 else
-        "sell" if probability_up <= 0.46 else "hold"
-    )
+    signal = signal_from_probability(probability_up)
     return {
         "target": TARGET_SPECIFICATION.copy(),
         "hybrid_version": HYBRID_VERSION,

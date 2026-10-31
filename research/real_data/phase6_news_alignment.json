@@ -1,0 +1,51 @@
+{
+  "phase": 6,
+  "status": "historical_corpus_unavailable_no_ablation",
+  "generated_at": "2026-10-31T14:09:59.516426+00:00",
+  "provider_assessment": {
+    "newsapi": {
+      "credential_configured": true,
+      "account_plan_verified": false,
+      "endpoint": "Everything /v2/everything",
+      "published_time_field": "publishedAt (UTC)",
+      "current_documented_history": "Developer: up to one month; paid Business/Advanced: up to five years.",
+      "terms_limitations": "Terms prohibit reproducing/republishing copyrighted material and building a competing news database; Developer plan is development/testing only.",
+      "historical_experiment_status": "not_queried; available plan and permitted retention/use for the intended research corpus were not verified",
+      "documentation": "https://newsapi.org/docs/endpoints/everything",
+      "pricing": "https://newsapi.org/pricing",
+      "terms": "https://newsapi.org/terms"
+    },
+    "yahoo_finance_yfinance": {
+      "current_behavior": "Yahoo quote search and ticker news results; no historical-news archive query is implemented.",
+      "published_time_fields": [
+        "providerPublishTime",
+        "pubDate"
+      ],
+      "historical_completeness_verified": false,
+      "terms_limitations": "Yahoo terms restrict reuse to create a database/archive that competes with or materially substitutes for Yahoo services/data.",
+      "terms": "https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html"
+    }
+  },
+  "alignment_implementation": {
+    "version": "strict-published-at-point-in-time-v1",
+    "cutoff": "News published at or before the explicit cutoff; historical session alignment uses 16:00 America/New_York converted to UTC.",
+    "timestamp_policy": "Missing, date-only, invalid, or timezone-naive publication timestamps are rejected.",
+    "relevance_policy": "Exact normalized ticker metadata, provider query match, or exact ticker token in headline is required.",
+    "deduplication": "Canonical HTTP(S) article reference with tracking parameters removed; otherwise stable SHA-256 of source, timestamp, and normalized title.",
+    "provenance": "Retains publication time, source, canonical article reference, ticker/query relevance, and acceptance status."
+  },
+  "historical_coverage": {
+    "licensed_point_in_time_archive_supplied": false,
+    "sessions_evaluated": 0,
+    "eligible_articles": 0,
+    "coverage_fraction": null,
+    "missing_news_dates": null,
+    "meaning": "Coverage is unknown because no historical article corpus with verified access/retention rights was supplied. Zero here means no corpus was evaluated, not that the market had no news."
+  },
+  "ablation": {
+    "run": false,
+    "reason": "No trustworthy, permitted, locally supplied point-in-time news archive was available for the historical walk-forward dates.",
+    "finbert_historical_incremental_value": "not established",
+    "today_headlines_substituted_for_history": false
+  }
+}

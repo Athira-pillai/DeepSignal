@@ -1,0 +1,1880 @@
+[
+  {
+    "run_id": "20261031T125414.844418Z",
+    "status": "ok",
+    "symbol": "SYNTHETIC",
+    "task": "next_session_direction",
+    "evaluation_version": "walk-forward-v2",
+    "data": {
+      "source": "Deterministic synthetic smoke-test fixture; not market data",
+      "rows_used": 750,
+      "sha256": "daa875fa32bed04039d147dfd66be993505e59a6e4abfa38abd67ecc4f124588",
+      "first_date": "2018-03-09",
+      "last_labeled_date": "2021-01-21"
+    },
+    "split": {
+      "method": "expanding_train_validation_test_with_final_holdout",
+      "walk_forward_folds": 4,
+      "final_holdout_fraction": 0.2,
+      "final_holdout_start_index": 600,
+      "final_holdout_samples": 150,
+      "final_training_samples": 480,
+      "final_validation_samples": 120,
+      "final_fit_samples": 600,
+      "final_holdout_start": "2020-06-26",
+      "final_holdout_end": "2021-01-21",
+      "final_holdout_untouched_for_selection": true,
+      "models_share_test_dates": true
+    },
+    "walk_forward": {
+      "status": "ok",
+      "folds": [
+        {
+          "fold": 1,
+          "train_start": 0,
+          "train_end": 300,
+          "validation_start": 300,
+          "validation_end": 360,
+          "test_start": 360,
+          "test_end": 420,
+          "train_start_date": "2018-03-09",
+          "train_end_date": "2019-05-02",
+          "validation_start_date": "2019-05-03",
+          "validation_end_date": "2019-07-25",
+          "train_samples": 300,
+          "validation_samples": 60,
+          "test_samples": 60,
+          "model_fit_end": 300,
+          "model_fit_end_date": "2019-05-02",
+          "model_fit_samples": 300,
+          "status": "ok",
+          "models": {
+            "previous_direction": {
+              "classification": {
+                "accuracy": 0.4333,
+                "balanced_accuracy": 0.4097,
+                "precision_up": 0.5278,
+                "recall_up": 0.5278,
+                "f1_up": 0.5278,
+                "class_counts": {
+                  "down_or_flat": 24,
+                  "up": 36
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    7,
+                    17
+                  ],
+                  [
+                    17,
+                    19
+                  ]
+                ],
+                "brier_score": 0.5667,
+                "roc_auc": 0.4097,
+                "reliability": [
+                  {
+                    "bin_start": 0.0,
+                    "bin_end": 0.1,
+                    "count": 24,
+                    "mean_probability": 0.0,
+                    "observed_up_rate": 0.7083
+                  },
+                  {
+                    "bin_start": 0.9,
+                    "bin_end": 1.0,
+                    "count": 36,
+                    "mean_probability": 1.0,
+                    "observed_up_rate": 0.5278
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-07-26",
+                "end": "2019-10-17",
+                "sessions": 60,
+                "cumulative_return_pct": -1.999,
+                "max_drawdown_pct": -5.0972,
+                "annualized_sharpe": -0.5411,
+                "turnover": 33.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "random_forest": {
+              "classification": {
+                "accuracy": 0.4833,
+                "balanced_accuracy": 0.5486,
+                "precision_up": 0.7273,
+                "recall_up": 0.2222,
+                "f1_up": 0.3404,
+                "class_counts": {
+                  "down_or_flat": 24,
+                  "up": 36
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    21,
+                    3
+                  ],
+                  [
+                    28,
+                    8
+                  ]
+                ],
+                "brier_score": 0.3182,
+                "roc_auc": 0.5116,
+                "reliability": [
+                  {
+                    "bin_start": 0.1,
+                    "bin_end": 0.2,
+                    "count": 10,
+                    "mean_probability": 0.1584,
+                    "observed_up_rate": 0.7
+                  },
+                  {
+                    "bin_start": 0.2,
+                    "bin_end": 0.3,
+                    "count": 15,
+                    "mean_probability": 0.2638,
+                    "observed_up_rate": 0.5333
+                  },
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 14,
+                    "mean_probability": 0.3525,
+                    "observed_up_rate": 0.5
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 10,
+                    "mean_probability": 0.4543,
+                    "observed_up_rate": 0.6
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 6,
+                    "mean_probability": 0.539,
+                    "observed_up_rate": 0.8333
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 4,
+                    "mean_probability": 0.6143,
+                    "observed_up_rate": 0.75
+                  },
+                  {
+                    "bin_start": 0.7,
+                    "bin_end": 0.8,
+                    "count": 1,
+                    "mean_probability": 0.7272,
+                    "observed_up_rate": 0.0
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-07-26",
+                "end": "2019-10-17",
+                "sessions": 60,
+                "cumulative_return_pct": 5.04,
+                "max_drawdown_pct": -2.5644,
+                "annualized_sharpe": 2.306,
+                "turnover": 16.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "lstm": {
+              "classification": {
+                "accuracy": 0.6,
+                "balanced_accuracy": 0.5,
+                "precision_up": 0.6,
+                "recall_up": 1.0,
+                "f1_up": 0.75,
+                "class_counts": {
+                  "down_or_flat": 24,
+                  "up": 36
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    0,
+                    24
+                  ],
+                  [
+                    0,
+                    36
+                  ]
+                ],
+                "brier_score": 0.25,
+                "roc_auc": 0.5,
+                "reliability": [
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 60,
+                    "mean_probability": 0.5,
+                    "observed_up_rate": 0.6
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-07-26",
+                "end": "2019-10-17",
+                "sessions": 60,
+                "cumulative_return_pct": 15.439,
+                "max_drawdown_pct": -5.039,
+                "annualized_sharpe": 3.2852,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "hybrid": {
+              "classification": {
+                "accuracy": 0.4833,
+                "balanced_accuracy": 0.5208,
+                "precision_up": 0.6316,
+                "recall_up": 0.3333,
+                "f1_up": 0.4364,
+                "class_counts": {
+                  "down_or_flat": 24,
+                  "up": 36
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    17,
+                    7
+                  ],
+                  [
+                    24,
+                    12
+                  ]
+                ],
+                "brier_score": 0.2637,
+                "roc_auc": 0.4815,
+                "reliability": [
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 6,
+                    "mean_probability": 0.3675,
+                    "observed_up_rate": 0.6667
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 35,
+                    "mean_probability": 0.4443,
+                    "observed_up_rate": 0.5714
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 18,
+                    "mean_probability": 0.5284,
+                    "observed_up_rate": 0.6667
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 1,
+                    "mean_probability": 0.6134,
+                    "observed_up_rate": 0.0
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-07-26",
+                "end": "2019-10-17",
+                "sessions": 60,
+                "cumulative_return_pct": 5.4932,
+                "max_drawdown_pct": -3.3412,
+                "annualized_sharpe": 2.0099,
+                "turnover": 22.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "buy_and_hold": {
+              "trading": {
+                "start": "2019-07-26",
+                "end": "2019-10-17",
+                "sessions": 60,
+                "cumulative_return_pct": 15.439,
+                "max_drawdown_pct": -5.039,
+                "annualized_sharpe": 3.2852,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "flat_cash": {
+              "trading": {
+                "start": "2019-07-26",
+                "end": "2019-10-17",
+                "sessions": 60,
+                "cumulative_return_pct": 0.0,
+                "max_drawdown_pct": 0.0,
+                "annualized_sharpe": 0.0,
+                "turnover": 0.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            }
+          },
+          "component_status": {
+            "lstm": "fixture_neutral_lstm",
+            "xgboost": "disabled_by_configuration"
+          },
+          "target_class_counts": {
+            "down_or_flat": 24,
+            "up": 36
+          },
+          "test_start_date": "2019-07-26",
+          "test_end_date": "2019-10-17"
+        },
+        {
+          "fold": 2,
+          "train_start": 0,
+          "train_end": 360,
+          "validation_start": 360,
+          "validation_end": 420,
+          "test_start": 420,
+          "test_end": 480,
+          "train_start_date": "2018-03-09",
+          "train_end_date": "2019-07-25",
+          "validation_start_date": "2019-07-26",
+          "validation_end_date": "2019-10-17",
+          "train_samples": 360,
+          "validation_samples": 60,
+          "test_samples": 60,
+          "model_fit_end": 360,
+          "model_fit_end_date": "2019-07-25",
+          "model_fit_samples": 360,
+          "status": "ok",
+          "models": {
+            "previous_direction": {
+              "classification": {
+                "accuracy": 0.5,
+                "balanced_accuracy": 0.5,
+                "precision_up": 0.5,
+                "recall_up": 0.5,
+                "f1_up": 0.5,
+                "class_counts": {
+                  "down_or_flat": 30,
+                  "up": 30
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    15,
+                    15
+                  ],
+                  [
+                    15,
+                    15
+                  ]
+                ],
+                "brier_score": 0.5,
+                "roc_auc": 0.5,
+                "reliability": [
+                  {
+                    "bin_start": 0.0,
+                    "bin_end": 0.1,
+                    "count": 30,
+                    "mean_probability": 0.0,
+                    "observed_up_rate": 0.5
+                  },
+                  {
+                    "bin_start": 0.9,
+                    "bin_end": 1.0,
+                    "count": 30,
+                    "mean_probability": 1.0,
+                    "observed_up_rate": 0.5
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-10-18",
+                "end": "2020-01-09",
+                "sessions": 60,
+                "cumulative_return_pct": -4.408,
+                "max_drawdown_pct": -6.4807,
+                "annualized_sharpe": -1.3079,
+                "turnover": 30.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "random_forest": {
+              "classification": {
+                "accuracy": 0.5833,
+                "balanced_accuracy": 0.5833,
+                "precision_up": 0.7273,
+                "recall_up": 0.2667,
+                "f1_up": 0.3902,
+                "class_counts": {
+                  "down_or_flat": 30,
+                  "up": 30
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    27,
+                    3
+                  ],
+                  [
+                    22,
+                    8
+                  ]
+                ],
+                "brier_score": 0.2592,
+                "roc_auc": 0.5667,
+                "reliability": [
+                  {
+                    "bin_start": 0.1,
+                    "bin_end": 0.2,
+                    "count": 2,
+                    "mean_probability": 0.1883,
+                    "observed_up_rate": 0.0
+                  },
+                  {
+                    "bin_start": 0.2,
+                    "bin_end": 0.3,
+                    "count": 16,
+                    "mean_probability": 0.2534,
+                    "observed_up_rate": 0.5
+                  },
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 19,
+                    "mean_probability": 0.3599,
+                    "observed_up_rate": 0.5263
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 12,
+                    "mean_probability": 0.4444,
+                    "observed_up_rate": 0.3333
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 8,
+                    "mean_probability": 0.5538,
+                    "observed_up_rate": 0.75
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 2,
+                    "mean_probability": 0.6345,
+                    "observed_up_rate": 0.5
+                  },
+                  {
+                    "bin_start": 0.7,
+                    "bin_end": 0.8,
+                    "count": 1,
+                    "mean_probability": 0.7003,
+                    "observed_up_rate": 1.0
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-10-18",
+                "end": "2020-01-09",
+                "sessions": 60,
+                "cumulative_return_pct": 8.3138,
+                "max_drawdown_pct": -1.3969,
+                "annualized_sharpe": 3.4754,
+                "turnover": 15.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "lstm": {
+              "classification": {
+                "accuracy": 0.5,
+                "balanced_accuracy": 0.5,
+                "precision_up": 0.5,
+                "recall_up": 1.0,
+                "f1_up": 0.6667,
+                "class_counts": {
+                  "down_or_flat": 30,
+                  "up": 30
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    0,
+                    30
+                  ],
+                  [
+                    0,
+                    30
+                  ]
+                ],
+                "brier_score": 0.25,
+                "roc_auc": 0.5,
+                "reliability": [
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 60,
+                    "mean_probability": 0.5,
+                    "observed_up_rate": 0.5
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-10-18",
+                "end": "2020-01-09",
+                "sessions": 60,
+                "cumulative_return_pct": 3.9015,
+                "max_drawdown_pct": -6.3329,
+                "annualized_sharpe": 0.9727,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "hybrid": {
+              "classification": {
+                "accuracy": 0.5333,
+                "balanced_accuracy": 0.5333,
+                "precision_up": 0.5625,
+                "recall_up": 0.3,
+                "f1_up": 0.3913,
+                "class_counts": {
+                  "down_or_flat": 30,
+                  "up": 30
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    23,
+                    7
+                  ],
+                  [
+                    21,
+                    9
+                  ]
+                ],
+                "brier_score": 0.2477,
+                "roc_auc": 0.5367,
+                "reliability": [
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 5,
+                    "mean_probability": 0.3893,
+                    "observed_up_rate": 0.8
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 39,
+                    "mean_probability": 0.4474,
+                    "observed_up_rate": 0.4359
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 15,
+                    "mean_probability": 0.5336,
+                    "observed_up_rate": 0.5333
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 1,
+                    "mean_probability": 0.6151,
+                    "observed_up_rate": 1.0
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2019-10-18",
+                "end": "2020-01-09",
+                "sessions": 60,
+                "cumulative_return_pct": 7.0381,
+                "max_drawdown_pct": -1.3969,
+                "annualized_sharpe": 2.8551,
+                "turnover": 11.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "buy_and_hold": {
+              "trading": {
+                "start": "2019-10-18",
+                "end": "2020-01-09",
+                "sessions": 60,
+                "cumulative_return_pct": 3.9015,
+                "max_drawdown_pct": -6.3329,
+                "annualized_sharpe": 0.9727,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "flat_cash": {
+              "trading": {
+                "start": "2019-10-18",
+                "end": "2020-01-09",
+                "sessions": 60,
+                "cumulative_return_pct": 0.0,
+                "max_drawdown_pct": 0.0,
+                "annualized_sharpe": 0.0,
+                "turnover": 0.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            }
+          },
+          "component_status": {
+            "lstm": "fixture_neutral_lstm",
+            "xgboost": "disabled_by_configuration"
+          },
+          "target_class_counts": {
+            "down_or_flat": 30,
+            "up": 30
+          },
+          "test_start_date": "2019-10-18",
+          "test_end_date": "2020-01-09"
+        },
+        {
+          "fold": 3,
+          "train_start": 0,
+          "train_end": 420,
+          "validation_start": 420,
+          "validation_end": 480,
+          "test_start": 480,
+          "test_end": 540,
+          "train_start_date": "2018-03-09",
+          "train_end_date": "2019-10-17",
+          "validation_start_date": "2019-10-18",
+          "validation_end_date": "2020-01-09",
+          "train_samples": 420,
+          "validation_samples": 60,
+          "test_samples": 60,
+          "model_fit_end": 420,
+          "model_fit_end_date": "2019-10-17",
+          "model_fit_samples": 420,
+          "status": "ok",
+          "models": {
+            "previous_direction": {
+              "classification": {
+                "accuracy": 0.45,
+                "balanced_accuracy": 0.4488,
+                "precision_up": 0.4286,
+                "recall_up": 0.4138,
+                "f1_up": 0.4211,
+                "class_counts": {
+                  "down_or_flat": 31,
+                  "up": 29
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    15,
+                    16
+                  ],
+                  [
+                    17,
+                    12
+                  ]
+                ],
+                "brier_score": 0.55,
+                "roc_auc": 0.4488,
+                "reliability": [
+                  {
+                    "bin_start": 0.0,
+                    "bin_end": 0.1,
+                    "count": 32,
+                    "mean_probability": 0.0,
+                    "observed_up_rate": 0.5312
+                  },
+                  {
+                    "bin_start": 0.9,
+                    "bin_end": 1.0,
+                    "count": 28,
+                    "mean_probability": 1.0,
+                    "observed_up_rate": 0.4286
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-01-10",
+                "end": "2020-04-02",
+                "sessions": 60,
+                "cumulative_return_pct": -6.7274,
+                "max_drawdown_pct": -8.9919,
+                "annualized_sharpe": -2.1944,
+                "turnover": 33.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "random_forest": {
+              "classification": {
+                "accuracy": 0.4333,
+                "balanced_accuracy": 0.4338,
+                "precision_up": 0.4194,
+                "recall_up": 0.4483,
+                "f1_up": 0.4333,
+                "class_counts": {
+                  "down_or_flat": 31,
+                  "up": 29
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    13,
+                    18
+                  ],
+                  [
+                    16,
+                    13
+                  ]
+                ],
+                "brier_score": 0.2659,
+                "roc_auc": 0.4494,
+                "reliability": [
+                  {
+                    "bin_start": 0.2,
+                    "bin_end": 0.3,
+                    "count": 1,
+                    "mean_probability": 0.2651,
+                    "observed_up_rate": 1.0
+                  },
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 9,
+                    "mean_probability": 0.3693,
+                    "observed_up_rate": 0.3333
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 19,
+                    "mean_probability": 0.446,
+                    "observed_up_rate": 0.6316
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 23,
+                    "mean_probability": 0.542,
+                    "observed_up_rate": 0.4348
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 8,
+                    "mean_probability": 0.651,
+                    "observed_up_rate": 0.375
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-01-10",
+                "end": "2020-04-02",
+                "sessions": 60,
+                "cumulative_return_pct": -11.9648,
+                "max_drawdown_pct": -12.6887,
+                "annualized_sharpe": -3.3234,
+                "turnover": 18.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "lstm": {
+              "classification": {
+                "accuracy": 0.4833,
+                "balanced_accuracy": 0.5,
+                "precision_up": 0.4833,
+                "recall_up": 1.0,
+                "f1_up": 0.6517,
+                "class_counts": {
+                  "down_or_flat": 31,
+                  "up": 29
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    0,
+                    31
+                  ],
+                  [
+                    0,
+                    29
+                  ]
+                ],
+                "brier_score": 0.25,
+                "roc_auc": 0.5,
+                "reliability": [
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 60,
+                    "mean_probability": 0.5,
+                    "observed_up_rate": 0.4833
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-01-10",
+                "end": "2020-04-02",
+                "sessions": 60,
+                "cumulative_return_pct": -9.0745,
+                "max_drawdown_pct": -14.7492,
+                "annualized_sharpe": -1.9338,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "hybrid": {
+              "classification": {
+                "accuracy": 0.4667,
+                "balanced_accuracy": 0.4605,
+                "precision_up": 0.4211,
+                "recall_up": 0.2759,
+                "f1_up": 0.3333,
+                "class_counts": {
+                  "down_or_flat": 31,
+                  "up": 29
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    20,
+                    11
+                  ],
+                  [
+                    21,
+                    8
+                  ]
+                ],
+                "brier_score": 0.2595,
+                "roc_auc": 0.4149,
+                "reliability": [
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 1,
+                    "mean_probability": 0.3835,
+                    "observed_up_rate": 1.0
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 40,
+                    "mean_probability": 0.4608,
+                    "observed_up_rate": 0.5
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 18,
+                    "mean_probability": 0.5516,
+                    "observed_up_rate": 0.3889
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 1,
+                    "mean_probability": 0.6003,
+                    "observed_up_rate": 1.0
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-01-10",
+                "end": "2020-04-02",
+                "sessions": 60,
+                "cumulative_return_pct": -6.9817,
+                "max_drawdown_pct": -8.0726,
+                "annualized_sharpe": -2.6113,
+                "turnover": 8.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "buy_and_hold": {
+              "trading": {
+                "start": "2020-01-10",
+                "end": "2020-04-02",
+                "sessions": 60,
+                "cumulative_return_pct": -9.0745,
+                "max_drawdown_pct": -14.7492,
+                "annualized_sharpe": -1.9338,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "flat_cash": {
+              "trading": {
+                "start": "2020-01-10",
+                "end": "2020-04-02",
+                "sessions": 60,
+                "cumulative_return_pct": 0.0,
+                "max_drawdown_pct": 0.0,
+                "annualized_sharpe": 0.0,
+                "turnover": 0.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            }
+          },
+          "component_status": {
+            "lstm": "fixture_neutral_lstm",
+            "xgboost": "disabled_by_configuration"
+          },
+          "target_class_counts": {
+            "down_or_flat": 31,
+            "up": 29
+          },
+          "test_start_date": "2020-01-10",
+          "test_end_date": "2020-04-02"
+        },
+        {
+          "fold": 4,
+          "train_start": 0,
+          "train_end": 480,
+          "validation_start": 480,
+          "validation_end": 540,
+          "test_start": 540,
+          "test_end": 600,
+          "train_start_date": "2018-03-09",
+          "train_end_date": "2020-01-09",
+          "validation_start_date": "2020-01-10",
+          "validation_end_date": "2020-04-02",
+          "train_samples": 480,
+          "validation_samples": 60,
+          "test_samples": 60,
+          "model_fit_end": 480,
+          "model_fit_end_date": "2020-01-09",
+          "model_fit_samples": 480,
+          "status": "ok",
+          "models": {
+            "previous_direction": {
+              "classification": {
+                "accuracy": 0.4667,
+                "balanced_accuracy": 0.457,
+                "precision_up": 0.3846,
+                "recall_up": 0.3846,
+                "f1_up": 0.3846,
+                "class_counts": {
+                  "down_or_flat": 34,
+                  "up": 26
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    18,
+                    16
+                  ],
+                  [
+                    16,
+                    10
+                  ]
+                ],
+                "brier_score": 0.5333,
+                "roc_auc": 0.457,
+                "reliability": [
+                  {
+                    "bin_start": 0.0,
+                    "bin_end": 0.1,
+                    "count": 34,
+                    "mean_probability": 0.0,
+                    "observed_up_rate": 0.4706
+                  },
+                  {
+                    "bin_start": 0.9,
+                    "bin_end": 1.0,
+                    "count": 26,
+                    "mean_probability": 1.0,
+                    "observed_up_rate": 0.3846
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-04-03",
+                "end": "2020-06-25",
+                "sessions": 60,
+                "cumulative_return_pct": -7.8987,
+                "max_drawdown_pct": -13.252,
+                "annualized_sharpe": -2.3876,
+                "turnover": 33.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "random_forest": {
+              "classification": {
+                "accuracy": 0.5,
+                "balanced_accuracy": 0.5136,
+                "precision_up": 0.4444,
+                "recall_up": 0.6154,
+                "f1_up": 0.5161,
+                "class_counts": {
+                  "down_or_flat": 34,
+                  "up": 26
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    14,
+                    20
+                  ],
+                  [
+                    10,
+                    16
+                  ]
+                ],
+                "brier_score": 0.2569,
+                "roc_auc": 0.5181,
+                "reliability": [
+                  {
+                    "bin_start": 0.3,
+                    "bin_end": 0.4,
+                    "count": 3,
+                    "mean_probability": 0.3707,
+                    "observed_up_rate": 0.3333
+                  },
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 21,
+                    "mean_probability": 0.454,
+                    "observed_up_rate": 0.4286
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 30,
+                    "mean_probability": 0.5504,
+                    "observed_up_rate": 0.4667
+                  },
+                  {
+                    "bin_start": 0.6,
+                    "bin_end": 0.7,
+                    "count": 6,
+                    "mean_probability": 0.6451,
+                    "observed_up_rate": 0.3333
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-04-03",
+                "end": "2020-06-25",
+                "sessions": 60,
+                "cumulative_return_pct": -2.5544,
+                "max_drawdown_pct": -12.3549,
+                "annualized_sharpe": -0.6515,
+                "turnover": 26.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "lstm": {
+              "classification": {
+                "accuracy": 0.4333,
+                "balanced_accuracy": 0.5,
+                "precision_up": 0.4333,
+                "recall_up": 1.0,
+                "f1_up": 0.6047,
+                "class_counts": {
+                  "down_or_flat": 34,
+                  "up": 26
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    0,
+                    34
+                  ],
+                  [
+                    0,
+                    26
+                  ]
+                ],
+                "brier_score": 0.25,
+                "roc_auc": 0.5,
+                "reliability": [
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 60,
+                    "mean_probability": 0.5,
+                    "observed_up_rate": 0.4333
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-04-03",
+                "end": "2020-06-25",
+                "sessions": 60,
+                "cumulative_return_pct": -6.2029,
+                "max_drawdown_pct": -16.3602,
+                "annualized_sharpe": -1.2201,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "hybrid": {
+              "classification": {
+                "accuracy": 0.5167,
+                "balanced_accuracy": 0.5011,
+                "precision_up": 0.4348,
+                "recall_up": 0.3846,
+                "f1_up": 0.4082,
+                "class_counts": {
+                  "down_or_flat": 34,
+                  "up": 26
+                },
+                "confusion_matrix_labels": [
+                  "down_or_flat",
+                  "up"
+                ],
+                "confusion_matrix": [
+                  [
+                    21,
+                    13
+                  ],
+                  [
+                    16,
+                    10
+                  ]
+                ],
+                "brier_score": 0.2482,
+                "roc_auc": 0.5351,
+                "reliability": [
+                  {
+                    "bin_start": 0.4,
+                    "bin_end": 0.5,
+                    "count": 37,
+                    "mean_probability": 0.4686,
+                    "observed_up_rate": 0.4324
+                  },
+                  {
+                    "bin_start": 0.5,
+                    "bin_end": 0.6,
+                    "count": 23,
+                    "mean_probability": 0.5225,
+                    "observed_up_rate": 0.4348
+                  }
+                ]
+              },
+              "trading": {
+                "start": "2020-04-03",
+                "end": "2020-06-25",
+                "sessions": 60,
+                "cumulative_return_pct": -3.5934,
+                "max_drawdown_pct": -9.4256,
+                "annualized_sharpe": -1.3366,
+                "turnover": 18.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "buy_and_hold": {
+              "trading": {
+                "start": "2020-04-03",
+                "end": "2020-06-25",
+                "sessions": 60,
+                "cumulative_return_pct": -6.2029,
+                "max_drawdown_pct": -16.3602,
+                "annualized_sharpe": -1.2201,
+                "turnover": 1.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            },
+            "flat_cash": {
+              "trading": {
+                "start": "2020-04-03",
+                "end": "2020-06-25",
+                "sessions": 60,
+                "cumulative_return_pct": 0.0,
+                "max_drawdown_pct": 0.0,
+                "annualized_sharpe": 0.0,
+                "turnover": 0.0,
+                "transaction_cost_pct": 0.06,
+                "slippage_pct": 0.04
+              }
+            }
+          },
+          "component_status": {
+            "lstm": "fixture_neutral_lstm",
+            "xgboost": "disabled_by_configuration"
+          },
+          "target_class_counts": {
+            "down_or_flat": 34,
+            "up": 26
+          },
+          "test_start_date": "2020-04-03",
+          "test_end_date": "2020-06-25"
+        }
+      ],
+      "aggregate": {
+        "buy_and_hold": {
+          "trading.cumulative_return_pct": {
+            "mean": 1.0158,
+            "std": 11.1098,
+            "folds": 4
+          },
+          "trading.max_drawdown_pct": {
+            "mean": -10.6203,
+            "std": 5.7598,
+            "folds": 4
+          },
+          "trading.annualized_sharpe": {
+            "mean": 0.276,
+            "std": 2.3567,
+            "folds": 4
+          }
+        },
+        "flat_cash": {
+          "trading.cumulative_return_pct": {
+            "mean": 0.0,
+            "std": 0.0,
+            "folds": 4
+          },
+          "trading.max_drawdown_pct": {
+            "mean": 0.0,
+            "std": 0.0,
+            "folds": 4
+          },
+          "trading.annualized_sharpe": {
+            "mean": 0.0,
+            "std": 0.0,
+            "folds": 4
+          }
+        },
+        "hybrid": {
+          "classification.accuracy": {
+            "mean": 0.5,
+            "std": 0.0304,
+            "folds": 4
+          },
+          "classification.balanced_accuracy": {
+            "mean": 0.5039,
+            "std": 0.0318,
+            "folds": 4
+          },
+          "classification.precision_up": {
+            "mean": 0.5125,
+            "std": 0.1018,
+            "folds": 4
+          },
+          "classification.recall_up": {
+            "mean": 0.3235,
+            "std": 0.0471,
+            "folds": 4
+          },
+          "classification.f1_up": {
+            "mean": 0.3923,
+            "std": 0.0435,
+            "folds": 4
+          },
+          "classification.roc_auc": {
+            "mean": 0.492,
+            "std": 0.0575,
+            "folds": 4
+          },
+          "classification.brier_score": {
+            "mean": 0.2548,
+            "std": 0.0081,
+            "folds": 4
+          },
+          "trading.cumulative_return_pct": {
+            "mean": 0.489,
+            "std": 6.8413,
+            "folds": 4
+          },
+          "trading.max_drawdown_pct": {
+            "mean": -5.5591,
+            "std": 3.8083,
+            "folds": 4
+          },
+          "trading.annualized_sharpe": {
+            "mean": 0.2293,
+            "std": 2.6196,
+            "folds": 4
+          }
+        },
+        "lstm": {
+          "classification.accuracy": {
+            "mean": 0.5042,
+            "std": 0.0699,
+            "folds": 4
+          },
+          "classification.balanced_accuracy": {
+            "mean": 0.5,
+            "std": 0.0,
+            "folds": 4
+          },
+          "classification.precision_up": {
+            "mean": 0.5042,
+            "std": 0.0699,
+            "folds": 4
+          },
+          "classification.recall_up": {
+            "mean": 1.0,
+            "std": 0.0,
+            "folds": 4
+          },
+          "classification.f1_up": {
+            "mean": 0.6683,
+            "std": 0.0605,
+            "folds": 4
+          },
+          "classification.roc_auc": {
+            "mean": 0.5,
+            "std": 0.0,
+            "folds": 4
+          },
+          "classification.brier_score": {
+            "mean": 0.25,
+            "std": 0.0,
+            "folds": 4
+          },
+          "trading.cumulative_return_pct": {
+            "mean": 1.0158,
+            "std": 11.1098,
+            "folds": 4
+          },
+          "trading.max_drawdown_pct": {
+            "mean": -10.6203,
+            "std": 5.7598,
+            "folds": 4
+          },
+          "trading.annualized_sharpe": {
+            "mean": 0.276,
+            "std": 2.3567,
+            "folds": 4
+          }
+        },
+        "previous_direction": {
+          "classification.accuracy": {
+            "mean": 0.4625,
+            "std": 0.0285,
+            "folds": 4
+          },
+          "classification.balanced_accuracy": {
+            "mean": 0.4539,
+            "std": 0.037,
+            "folds": 4
+          },
+          "classification.precision_up": {
+            "mean": 0.4602,
+            "std": 0.0655,
+            "folds": 4
+          },
+          "classification.recall_up": {
+            "mean": 0.4566,
+            "std": 0.0682,
+            "folds": 4
+          },
+          "classification.f1_up": {
+            "mean": 0.4584,
+            "std": 0.0668,
+            "folds": 4
+          },
+          "classification.roc_auc": {
+            "mean": 0.4539,
+            "std": 0.037,
+            "folds": 4
+          },
+          "classification.brier_score": {
+            "mean": 0.5375,
+            "std": 0.0285,
+            "folds": 4
+          },
+          "trading.cumulative_return_pct": {
+            "mean": -5.2583,
+            "std": 2.6125,
+            "folds": 4
+          },
+          "trading.max_drawdown_pct": {
+            "mean": -8.4555,
+            "std": 3.5811,
+            "folds": 4
+          },
+          "trading.annualized_sharpe": {
+            "mean": -1.6078,
+            "std": 0.8524,
+            "folds": 4
+          }
+        },
+        "random_forest": {
+          "classification.accuracy": {
+            "mean": 0.5,
+            "std": 0.0624,
+            "folds": 4
+          },
+          "classification.balanced_accuracy": {
+            "mean": 0.5198,
+            "std": 0.064,
+            "folds": 4
+          },
+          "classification.precision_up": {
+            "mean": 0.5796,
+            "std": 0.1709,
+            "folds": 4
+          },
+          "classification.recall_up": {
+            "mean": 0.3881,
+            "std": 0.1803,
+            "folds": 4
+          },
+          "classification.f1_up": {
+            "mean": 0.42,
+            "std": 0.0745,
+            "folds": 4
+          },
+          "classification.roc_auc": {
+            "mean": 0.5114,
+            "std": 0.0481,
+            "folds": 4
+          },
+          "classification.brier_score": {
+            "mean": 0.2751,
+            "std": 0.029,
+            "folds": 4
+          },
+          "trading.cumulative_return_pct": {
+            "mean": -0.2914,
+            "std": 9.016,
+            "folds": 4
+          },
+          "trading.max_drawdown_pct": {
+            "mean": -7.2512,
+            "std": 6.1061,
+            "folds": 4
+          },
+          "trading.annualized_sharpe": {
+            "mean": 0.4516,
+            "std": 3.0578,
+            "folds": 4
+          }
+        }
+      }
+    },
+    "models": {
+      "previous_direction": {
+        "classification": {
+          "accuracy": 0.5533,
+          "balanced_accuracy": 0.5532,
+          "precision_up": 0.5584,
+          "recall_up": 0.5658,
+          "f1_up": 0.5621,
+          "class_counts": {
+            "down_or_flat": 74,
+            "up": 76
+          },
+          "confusion_matrix_labels": [
+            "down_or_flat",
+            "up"
+          ],
+          "confusion_matrix": [
+            [
+              40,
+              34
+            ],
+            [
+              33,
+              43
+            ]
+          ],
+          "brier_score": 0.4467,
+          "roc_auc": 0.5532,
+          "reliability": [
+            {
+              "bin_start": 0.0,
+              "bin_end": 0.1,
+              "count": 73,
+              "mean_probability": 0.0,
+              "observed_up_rate": 0.4521
+            },
+            {
+              "bin_start": 0.9,
+              "bin_end": 1.0,
+              "count": 77,
+              "mean_probability": 1.0,
+              "observed_up_rate": 0.5584
+            }
+          ]
+        },
+        "trading": {
+          "start": "2020-06-26",
+          "end": "2021-01-21",
+          "sessions": 150,
+          "cumulative_return_pct": 5.6171,
+          "max_drawdown_pct": -8.4699,
+          "annualized_sharpe": 0.7808,
+          "turnover": 68.0,
+          "transaction_cost_pct": 0.06,
+          "slippage_pct": 0.04
+        }
+      },
+      "random_forest": {
+        "classification": {
+          "accuracy": 0.4467,
+          "balanced_accuracy": 0.4454,
+          "precision_up": 0.4607,
+          "recall_up": 0.5395,
+          "f1_up": 0.497,
+          "class_counts": {
+            "down_or_flat": 74,
+            "up": 76
+          },
+          "confusion_matrix_labels": [
+            "down_or_flat",
+            "up"
+          ],
+          "confusion_matrix": [
+            [
+              26,
+              48
+            ],
+            [
+              35,
+              41
+            ]
+          ],
+          "brier_score": 0.2612,
+          "roc_auc": 0.4653,
+          "reliability": [
+            {
+              "bin_start": 0.2,
+              "bin_end": 0.3,
+              "count": 2,
+              "mean_probability": 0.2744,
+              "observed_up_rate": 0.5
+            },
+            {
+              "bin_start": 0.3,
+              "bin_end": 0.4,
+              "count": 12,
+              "mean_probability": 0.3652,
+              "observed_up_rate": 0.5833
+            },
+            {
+              "bin_start": 0.4,
+              "bin_end": 0.5,
+              "count": 47,
+              "mean_probability": 0.4528,
+              "observed_up_rate": 0.5745
+            },
+            {
+              "bin_start": 0.5,
+              "bin_end": 0.6,
+              "count": 66,
+              "mean_probability": 0.5493,
+              "observed_up_rate": 0.3939
+            },
+            {
+              "bin_start": 0.6,
+              "bin_end": 0.7,
+              "count": 20,
+              "mean_probability": 0.633,
+              "observed_up_rate": 0.6
+            },
+            {
+              "bin_start": 0.7,
+              "bin_end": 0.8,
+              "count": 3,
+              "mean_probability": 0.7158,
+              "observed_up_rate": 1.0
+            }
+          ]
+        },
+        "trading": {
+          "start": "2020-06-26",
+          "end": "2021-01-21",
+          "sessions": 150,
+          "cumulative_return_pct": -17.5737,
+          "max_drawdown_pct": -22.7537,
+          "annualized_sharpe": -2.2318,
+          "turnover": 61.0,
+          "transaction_cost_pct": 0.06,
+          "slippage_pct": 0.04
+        }
+      },
+      "lstm": {
+        "classification": {
+          "accuracy": 0.5067,
+          "balanced_accuracy": 0.5,
+          "precision_up": 0.5067,
+          "recall_up": 1.0,
+          "f1_up": 0.6726,
+          "class_counts": {
+            "down_or_flat": 74,
+            "up": 76
+          },
+          "confusion_matrix_labels": [
+            "down_or_flat",
+            "up"
+          ],
+          "confusion_matrix": [
+            [
+              0,
+              74
+            ],
+            [
+              0,
+              76
+            ]
+          ],
+          "brier_score": 0.25,
+          "roc_auc": 0.5,
+          "reliability": [
+            {
+              "bin_start": 0.5,
+              "bin_end": 0.6,
+              "count": 150,
+              "mean_probability": 0.5,
+              "observed_up_rate": 0.5067
+            }
+          ]
+        },
+        "trading": {
+          "start": "2020-06-26",
+          "end": "2021-01-21",
+          "sessions": 150,
+          "cumulative_return_pct": 2.1835,
+          "max_drawdown_pct": -18.4203,
+          "annualized_sharpe": 0.2847,
+          "turnover": 1.0,
+          "transaction_cost_pct": 0.06,
+          "slippage_pct": 0.04
+        }
+      },
+      "hybrid": {
+        "classification": {
+          "accuracy": 0.5,
+          "balanced_accuracy": 0.4996,
+          "precision_up": 0.5063,
+          "recall_up": 0.5263,
+          "f1_up": 0.5161,
+          "class_counts": {
+            "down_or_flat": 74,
+            "up": 76
+          },
+          "confusion_matrix_labels": [
+            "down_or_flat",
+            "up"
+          ],
+          "confusion_matrix": [
+            [
+              35,
+              39
+            ],
+            [
+              36,
+              40
+            ]
+          ],
+          "brier_score": 0.2516,
+          "roc_auc": 0.498,
+          "reliability": [
+            {
+              "bin_start": 0.4,
+              "bin_end": 0.5,
+              "count": 71,
+              "mean_probability": 0.47,
+              "observed_up_rate": 0.507
+            },
+            {
+              "bin_start": 0.5,
+              "bin_end": 0.6,
+              "count": 79,
+              "mean_probability": 0.5359,
+              "observed_up_rate": 0.5063
+            }
+          ]
+        },
+        "trading": {
+          "start": "2020-06-26",
+          "end": "2021-01-21",
+          "sessions": 150,
+          "cumulative_return_pct": -8.4666,
+          "max_drawdown_pct": -16.0707,
+          "annualized_sharpe": -0.992,
+          "turnover": 53.0,
+          "transaction_cost_pct": 0.06,
+          "slippage_pct": 0.04
+        }
+      },
+      "buy_and_hold": {
+        "trading": {
+          "start": "2020-06-26",
+          "end": "2021-01-21",
+          "sessions": 150,
+          "cumulative_return_pct": 2.1835,
+          "max_drawdown_pct": -18.4203,
+          "annualized_sharpe": 0.2847,
+          "turnover": 1.0,
+          "transaction_cost_pct": 0.06,
+          "slippage_pct": 0.04
+        }
+      },
+      "flat_cash": {
+        "trading": {
+          "start": "2020-06-26",
+          "end": "2021-01-21",
+          "sessions": 150,
+          "cumulative_return_pct": 0.0,
+          "max_drawdown_pct": 0.0,
+          "annualized_sharpe": 0.0,
+          "turnover": 0.0,
+          "transaction_cost_pct": 0.06,
+          "slippage_pct": 0.04
+        }
+      }
+    },
+    "component_status": {
+      "lstm": "fixture_neutral_lstm",
+      "xgboost": "disabled_by_configuration"
+    },
+    "probability_diagnostics": {
+      "previous_direction": {
+        "mean_probability_up": 0.5133,
+        "status": "available"
+      },
+      "random_forest": {
+        "mean_probability_up": 0.5151,
+        "status": "available"
+      },
+      "lstm": {
+        "mean_probability_up": 0.5,
+        "status": "fixture_neutral_lstm"
+      },
+      "hybrid": {
+        "mean_probability_up": 0.5047,
+        "status": "available"
+      }
+    },
+    "configuration": {
+      "random_forest_trees": 50,
+      "lstm_lookback": 30,
+      "lstm_units": 8,
+      "lstm_epochs": 1,
+      "hybrid_weights": {
+        "lstm": 0.4,
+        "random_forest": 0.4,
+        "finbert": 0.1,
+        "technical": 0.1
+      },
+      "hybrid_version": "weighted-probability-v1",
+      "historical_sentiment_score": 0.0,
+      "historical_sentiment_status": "unavailable_neutral_fallback",
+      "xgboost_enabled": false,
+      "xgboost_trees": 200,
+      "random_seed": 1729,
+      "preprocessing": {
+        "sequence_scaler": "MinMaxScaler fit on training feature rows per fold",
+        "walk_forward_validation": "LSTM early stopping; tabular fold models fit training rows only",
+        "final_holdout_refit": "Random Forest uses all pre-holdout development rows with fixed parameters",
+        "tabular_scaler": "none"
+      },
+      "transaction_cost_pct": 0.06,
+      "slippage_pct": 0.04,
+      "features": [
+        "return_1d",
+        "return_5d",
+        "sma20_gap",
+        "sma50_gap",
+        "rsi",
+        "macd",
+        "macd_signal",
+        "bb_position",
+        "volume_change"
+      ],
+      "target": "next close > current close"
+    },
+    "versions": {
+      "application": "1.0.0",
+      "evaluation_model": "direction-rf-walk-forward-v2",
+      "lstm_model": "direction-lstm-walk-forward-v2",
+      "hybrid_model": "weighted-probability-v1",
+      "python_packages": {
+        "numpy": "2.5.2",
+        "pandas": "3.0.5",
+        "scikit-learn": "1.9.0",
+        "yfinance": "1.7.0",
+        "tensorflow": "2.21.0",
+        "xgboost": "3.4.1",
+        "transformers": "5.16.1"
+      }
+    },
+    "limitations": [
+      "Historical point-in-time news sentiment is unavailable; neutral sentiment is used in every hybrid row.",
+      "The LSTM scaler is fit on training feature rows only; validation is used only for early stopping.",
+      "The final chronological holdout is evaluated once and is not used to choose models, thresholds or weights.",
+      "Trading metrics are simplified long-or-cash close-to-close simulations with proportional costs."
+    ]
+  }
+]

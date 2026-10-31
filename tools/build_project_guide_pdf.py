@@ -361,54 +361,62 @@ class PDFDocument:
 
     def architecture(self):
         self.new_page()
-        self.heading(3, "System architecture — model components highlighted")
+        self.heading(3, "System architecture — models and evaluation paths")
         y = self.y
         width = CONTENT_W
         x = LEFT
-        self.diagram_box(x + 30, y, width - 60, 43, (246, 248, 252), (105, 122, 145),
-                         "Browser · React application", "Ticker picker · dashboard · analysis · charts · local saved signals")
-        self.arrow(PAGE_W / 2, y - 43, PAGE_W / 2, y - 56)
-        y -= 60
-        self.diagram_box(x + 65, y, width - 130, 43, (246, 248, 252), (105, 122, 145),
+        self.diagram_box(x + 30, y, width - 60, 38, (246, 248, 252), (105, 122, 145),
+                         "Browser · React application", "Dashboard · Analysis · Backtest · Models · local signal history")
+        self.arrow(PAGE_W / 2, y - 38, PAGE_W / 2, y - 49)
+        y -= 54
+        self.diagram_box(x + 65, y, width - 130, 38, (246, 248, 252), (105, 122, 145),
                          "Vite → FastAPI", "HTTP / JSON · frontend :5173 · backend :8000")
-        self.arrow(PAGE_W / 2, y - 43, PAGE_W / 2, y - 56)
-        y -= 60
-        self.diagram_box(x + 18, y, width - 36, 52, (246, 248, 252), (105, 122, 145),
-                         "Data providers and features", "Yahoo Finance daily OHLCV · NewsAPI / Yahoo headlines · pandas features and labels")
-        self.arrow(PAGE_W / 2, y - 52, PAGE_W / 2, y - 66)
-        y -= 70
+        self.arrow(PAGE_W / 2, y - 38, PAGE_W / 2, y - 49)
+        y -= 54
+        self.diagram_box(x + 18, y, width - 36, 44, (246, 248, 252), (105, 122, 145),
+                         "Market / news inputs and preparation", "Yahoo daily OHLCV · current NewsAPI / Yahoo headlines · causal pandas features · SHA-256 provenance")
+        self.arrow(PAGE_W / 2, y - 44, PAGE_W / 2, y - 56)
+        y -= 62
 
-        group_h = 190
+        group_h = 194
         self.rect(x + 8, y - group_h, width - 16, group_h, (250, 252, 255), (160, 174, 194), 1.2)
-        self.text(PAGE_W / 2 - 119, y - 16, "MODEL COMPONENTS + DIRECTION EVIDENCE", 8.0, "F2", (56, 76, 101))
+        self.text(PAGE_W / 2 - 123, y - 14, "LIVE SIGNAL MODELS + SEPARATE ANALYSIS", 8.0, "F2", (56, 76, 101))
         gap = 12
         card_w = (width - 50 - gap) / 2
         left_x, right_x = x + 25, x + 25 + card_w + gap
-        card_h = 54
-        first_top, second_top = y - 31, y - 96
+        card_h = 43
+        first_top, second_top, third_top = y - 25, y - 76, y - 127
         blue = (42, 117, 196)
         model_fill = (229, 241, 255)
-        self.diagram_box(left_x, first_top, card_w, card_h, model_fill, blue, "LSTM", "Sequence model · next-session up · 40%", (22, 62, 107), "MODEL · SEQUENCE")
-        self.diagram_box(right_x, first_top, card_w, card_h, model_fill, blue, "Random Forest", "Tabular model · next-session up · 40%", (22, 62, 107), "MODEL · TABULAR")
-        self.diagram_box(left_x, second_top, card_w, card_h, model_fill, blue, "FinBERT", "Headline sentiment mapped to score · 10%", (22, 62, 107), "MODEL · TEXT")
-        self.diagram_box(right_x, second_top, card_w, card_h, (245, 247, 251), (110, 129, 154), "Technical evidence", "Moving averages · momentum · RSI/MACD · 10%", (37, 57, 81), "EXPLICIT RULES")
+        self.diagram_box(left_x, first_top, card_w, card_h, model_fill, blue, "LSTM", "7-column sequence · P(up) · fixed weight 40%", (22, 62, 107), "TRAINED MODEL")
+        self.diagram_box(right_x, first_top, card_w, card_h, model_fill, blue, "Random Forest", "9 tabular features · P(up) · fixed weight 40%", (22, 62, 107), "TRAINED MODEL")
+        self.diagram_box(left_x, second_top, card_w, card_h, model_fill, blue, "FinBERT", "Current headline sentiment · mapped · 10%", (22, 62, 107), "PRETRAINED TEXT MODEL")
+        self.diagram_box(right_x, second_top, card_w, card_h, (245, 247, 251), (110, 129, 154), "Technical rules", "Alignment · momentum · RSI/MACD · 10%", (37, 57, 81), "DETERMINISTIC EVIDENCE")
+        self.diagram_box(left_x, third_top, card_w, card_h, model_fill, blue, "Gaussian HMM", "Causal latent regime · not a direction vote", (22, 62, 107), "SEPARATE ANALYSIS MODEL")
+        self.diagram_box(right_x, third_top, card_w, card_h, (244, 236, 252), (126, 82, 174), "XGBoost + SHAP", "Optional comparison / explanation · not hybrid votes", (94, 58, 133), "OPTIONAL")
         self.arrow(PAGE_W / 2, y, PAGE_W / 2, y - 24)
-        hybrid_top = y - group_h - 17
+        hybrid_top = y - group_h - 14
         self.arrow(PAGE_W / 2, y - group_h, PAGE_W / 2, hybrid_top - 2)
         hybrid_w = width - 90
         hybrid_x = x + (width - hybrid_w) / 2
-        self.diagram_box(hybrid_x, hybrid_top, hybrid_w, 48, (222, 247, 236), (23, 133, 104),
-                         "Weighted hybrid → Buy / Hold / Sell", "Versioned score · 40% LSTM · 40% RF · 10% sentiment · 10% technical",
+        self.diagram_box(hybrid_x, hybrid_top, hybrid_w, 43, (222, 247, 236), (23, 133, 104),
+                         "Fixed weighted hybrid → signal", "40% LSTM + 40% RF + 10% mapped FinBERT + 10% technical evidence",
                          (18, 105, 81), "ENSEMBLE OUTPUT")
-        y = hybrid_top - 64
+        y = hybrid_top - 57
+        self.diagram_box(x + 8, y, width - 16, 42, (244, 247, 251), (110, 129, 154),
+                         "Evaluation-only methods", "Expanding folds · adaptive validation weights · Platt/isotonic calibration · No Trade thresholds",
+                         (37, 57, 81), "NEVER FITTED BY LIVE PREDICTION")
+        self.arrow(hybrid_x + hybrid_w / 2, hybrid_top - 43, PAGE_W / 2, y + 2)
+        y -= 55
         half = (width - 18) / 2
-        self.diagram_box(x, y, half, 54, (244, 236, 252), (126, 82, 174), "XGBoost (optional)", "Holdout comparison only; not a hybrid voter", (94, 58, 133), "COMPARISON MODEL")
-        self.diagram_box(x + half + 18, y, half, 54, (248, 246, 239), (138, 120, 82), "Backtest and persistence", "Next-open rules · Supabase / JSON · local model artifacts", (91, 77, 49))
-        self.arrow(hybrid_x + hybrid_w / 2, hybrid_top - 48, hybrid_x + hybrid_w / 2, y + 5)
-        self.arrow(x + half, y - 27, x + half + 18, y - 27)
-        cap = "Blue = trained model component   Green = explicit hybrid   Purple = optional comparison"
-        self.text(LEFT + 14, y - 68, cap, 7.3, "F1", (78, 93, 113))
-        self.y = y - 82
+        self.diagram_box(x, y, half, 42, (246, 248, 252), (105, 122, 145),
+                         "Result creation", "Next-open fills · fees/slippage · portfolio metrics · final hybrid holdout excluded", (25, 44, 69), "BACKTEST")
+        self.diagram_box(x + half + 18, y, half, 42, (248, 246, 239), (138, 120, 82),
+                         "Persistence and artifacts", "Supabase / local JSON · local versioned model files · browser localStorage", (91, 77, 49), "SEPARATE STORES")
+        self.arrow(PAGE_W / 2, y + 45, x + half / 2, y + 42)
+        self.arrow(PAGE_W / 2, y + 45, x + half + 18 + half / 2, y + 42)
+        self.text(LEFT + 12, y - 18, "Blue = predictive or regime model   Green = live fixed hybrid   Purple = optional comparison / evaluation method", 7.0, "F1", (78, 93, 113))
+        self.y = y - 31
 
     def prediction_pipeline(self):
         self.new_page()
@@ -454,9 +462,15 @@ class PDFDocument:
         self.arrow(PAGE_W / 2, hybrid_top - 47, x + half / 2, out_top + 4)
         self.arrow(PAGE_W / 2, hybrid_top - 47, x + half + end_gap + half / 2, out_top + 4)
         self.text(LEFT + 8, out_top - 66,
-                  "Separate stores: fitted model files stay local · cache is temporary · browser signals stay in localStorage · backtest uses its own technical strategy.",
-                  7.4, "F1", (78, 93, 113))
-        self.y = out_top - 82
+                  "Live route uses fixed weights; it does not fit calibration or No Trade. HMM regime is separate context, not a direction vote.",
+                  7.2, "F1", (78, 93, 113))
+        lower_top = out_top - 82
+        half = (width - 18) / 2
+        self.diagram_box(x, lower_top, half, 48, (244, 247, 251), (110, 129, 154),
+                         "Walk-forward result path", "Prior validation selects adaptive weights / calibrator; later test rows score them", (37, 57, 81), "OFFLINE EVALUATION")
+        self.diagram_box(x + half + 18, lower_top, half, 48, (244, 247, 251), (110, 129, 154),
+                         "Portfolio metrics", "Next-session open · configured costs · long-only · terminal liquidation", (37, 57, 81), "BACKTEST ENGINE")
+        self.y = lower_top - 60
 
     def add_block(self, block, number):
         kind = block[0]

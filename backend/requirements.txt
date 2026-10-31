@@ -11,3 +11,4 @@ requests>=2.32.4
 python-dotenv>=1.1.0
 shap>=0.48.0
 xgboost>=3.0.4
+pomegranate==1.1.2

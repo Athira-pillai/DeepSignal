@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 import pandas as pd
@@ -47,6 +48,20 @@ class ApiValidationTests(unittest.TestCase):
     def test_prediction_rejects_unsupported_timeframe(self):
         response = self.client.get("/api/predict/AAPL?timeframe=4M")
         self.assertEqual(response.status_code, 422)
+
+    def test_multi_ticker_evaluation_accepts_configured_symbol_list(self):
+        with mock.patch.object(
+            main, "_evaluate_and_persist",
+            side_effect=lambda symbol: {"status": "ok", "symbol": symbol},
+        ):
+            response = self.client.get("/api/evaluate?symbols=AAPL,MSFT")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["requested_symbols"], ["AAPL", "MSFT"])
+        self.assertEqual(response.json()["status"], "ok")
+
+    def test_multi_ticker_evaluation_rejects_invalid_or_oversized_universe(self):
+        self.assertEqual(self.client.get("/api/evaluate?symbols=AAPL,invalid!").status_code, 422)
+        self.assertEqual(self.client.get("/api/evaluate?symbols=" + ",".join(["AAPL"] * 11)).status_code, 422)
 
     def test_signal_threshold_boundaries(self):
         cases = {
@@ -93,6 +108,26 @@ class ApiValidationTests(unittest.TestCase):
 
 
 class DependencyFallbackTests(unittest.TestCase):
+    def test_live_news_is_cut_off_at_prediction_time_and_audited(self):
+        cutoff = datetime(2026, 10, 30, 20, 0, tzinfo=timezone.utc)
+        payload = {"news": [
+            {"title": "AAPL before cutoff", "providerPublishTime": 1793386800,
+             "publisher": "Wire", "link": "https://example.com/before"},
+            {"title": "AAPL after cutoff", "providerPublishTime": 1793394000,
+             "publisher": "Wire", "link": "https://example.com/after"},
+            {"title": "AAPL missing timestamp", "publisher": "Wire", "link": "https://example.com/missing"},
+        ], "quotes": []}
+        response = mock.Mock()
+        response.json.return_value = payload
+        response.raise_for_status.return_value = None
+        with mock.patch.dict(os.environ, {"NEWS_API_KEY": ""}), \
+             mock.patch.object(main.requests, "get", return_value=response), \
+             mock.patch.object(main.yf, "Ticker", side_effect=RuntimeError("no fallback")):
+            articles, audit = main.get_news("AAPL", as_of=cutoff, include_alignment=True)
+        self.assertEqual([item["title"] for item in articles], ["AAPL before cutoff"])
+        self.assertEqual(audit["after_cutoff"], 1)
+        self.assertEqual(audit["missing_or_ambiguous_timestamp"], 1)
+
     def test_missing_news_providers_return_empty_list(self):
         with mock.patch.dict(os.environ, {"NEWS_API_KEY": ""}), \
              mock.patch.object(main.requests, "get", side_effect=OSError("network unavailable")), \

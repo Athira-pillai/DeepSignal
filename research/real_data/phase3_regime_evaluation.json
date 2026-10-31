@@ -1,0 +1,619 @@
+{
+  "status": "ok",
+  "reports": [
+    {
+      "status": "ok",
+      "run_id": "20261031T134312.607512Z",
+      "symbol": "AAPL",
+      "comparison_method": "same fixed-hybrid predictions scored pooled and stratified by causal HMM regime",
+      "without_regime": {
+        "samples": 225,
+        "classification": {
+          "accuracy": 0.5156,
+          "balanced_accuracy": 0.5013,
+          "precision_up": 0.5298,
+          "recall_up": 0.7479,
+          "f1_up": 0.6202,
+          "class_counts": {
+            "down_or_flat": 106,
+            "up": 119
+          },
+          "confusion_matrix_labels": [
+            "down_or_flat",
+            "up"
+          ],
+          "confusion_matrix": [
+            [
+              27,
+              79
+            ],
+            [
+              30,
+              89
+            ]
+          ],
+          "brier_score": 0.2532,
+          "roc_auc": 0.496,
+          "reliability": [
+            {
+              "bin_start": 0.4,
+              "bin_end": 0.5,
+              "count": 57,
+              "mean_probability": 0.4757,
+              "observed_up_rate": 0.5263
+            },
+            {
+              "bin_start": 0.5,
+              "bin_end": 0.6,
+              "count": 118,
+              "mean_probability": 0.5467,
+              "observed_up_rate": 0.5169
+            },
+            {
+              "bin_start": 0.6,
+              "bin_end": 0.7,
+              "count": 50,
+              "mean_probability": 0.6279,
+              "observed_up_rate": 0.56
+            }
+          ]
+        }
+      },
+      "with_regime_context": {
+        "bearish/high-risk": {
+          "samples": 3,
+          "folds": [
+            1,
+            2
+          ],
+          "classification": {
+            "accuracy": 0.6667,
+            "balanced_accuracy": null,
+            "precision_up": 1.0,
+            "recall_up": 0.6667,
+            "f1_up": 0.8,
+            "class_counts": {
+              "down_or_flat": 0,
+              "up": 3
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                0,
+                0
+              ],
+              [
+                1,
+                2
+              ]
+            ],
+            "brier_score": 0.1931,
+            "roc_auc": null,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 1,
+                "mean_probability": 0.4697,
+                "observed_up_rate": 1.0
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 1,
+                "mean_probability": 0.5872,
+                "observed_up_rate": 1.0
+              },
+              {
+                "bin_start": 0.6,
+                "bin_end": 0.7,
+                "count": 1,
+                "mean_probability": 0.6427,
+                "observed_up_rate": 1.0
+              }
+            ]
+          }
+        },
+        "bullish/trending": {
+          "samples": 112,
+          "folds": [
+            1,
+            2,
+            3
+          ],
+          "classification": {
+            "accuracy": 0.5268,
+            "balanced_accuracy": 0.5029,
+            "precision_up": 0.5465,
+            "recall_up": 0.7705,
+            "f1_up": 0.6395,
+            "class_counts": {
+              "down_or_flat": 51,
+              "up": 61
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                12,
+                39
+              ],
+              [
+                14,
+                47
+              ]
+            ],
+            "brier_score": 0.2534,
+            "roc_auc": 0.4899,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 26,
+                "mean_probability": 0.4712,
+                "observed_up_rate": 0.5385
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 53,
+                "mean_probability": 0.5549,
+                "observed_up_rate": 0.5472
+              },
+              {
+                "bin_start": 0.6,
+                "bin_end": 0.7,
+                "count": 33,
+                "mean_probability": 0.632,
+                "observed_up_rate": 0.5455
+              }
+            ]
+          }
+        },
+        "bearish/low-volatility": {
+          "samples": 110,
+          "folds": [
+            3,
+            4
+          ],
+          "classification": {
+            "accuracy": 0.5,
+            "balanced_accuracy": 0.5,
+            "precision_up": 0.5,
+            "recall_up": 0.7273,
+            "f1_up": 0.5926,
+            "class_counts": {
+              "down_or_flat": 55,
+              "up": 55
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                15,
+                40
+              ],
+              [
+                15,
+                40
+              ]
+            ],
+            "brier_score": 0.2547,
+            "roc_auc": 0.4932,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 30,
+                "mean_probability": 0.4799,
+                "observed_up_rate": 0.5
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 64,
+                "mean_probability": 0.5392,
+                "observed_up_rate": 0.4844
+              },
+              {
+                "bin_start": 0.6,
+                "bin_end": 0.7,
+                "count": 16,
+                "mean_probability": 0.6185,
+                "observed_up_rate": 0.5625
+              }
+            ]
+          }
+        }
+      },
+      "folds": [
+        {
+          "fold": 1,
+          "status": "ok",
+          "train_start": "2024-01-11",
+          "train_end": "2025-02-25",
+          "validation_start": "2025-02-26",
+          "validation_end": "2025-05-15",
+          "test_start": "2025-05-16",
+          "test_end": "2025-08-07",
+          "selected_states": 2,
+          "state_mapping": {
+            "1": "bullish/trending",
+            "0": "bearish/high-risk"
+          },
+          "state_selection_scores": [
+            {
+              "states": 2,
+              "validation_log_likelihood_per_row": -24.239368983677455,
+              "selection_score": -24.429989515202973,
+              "train_converged": true,
+              "iterations": 11
+            },
+            {
+              "states": 3,
+              "validation_log_likelihood_per_row": -40.409210205078125,
+              "selection_score": -40.73025531080531,
+              "train_converged": true,
+              "iterations": 21
+            }
+          ],
+          "test_regime_counts": {
+            "bearish/high-risk": 2,
+            "bullish/trending": 55
+          },
+          "without_regime_hybrid_metrics": {
+            "accuracy": 0.5263,
+            "balanced_accuracy": 0.5169,
+            "precision_up": 0.5758,
+            "recall_up": 0.5938,
+            "f1_up": 0.5846,
+            "class_counts": {
+              "down_or_flat": 25,
+              "up": 32
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                11,
+                14
+              ],
+              [
+                13,
+                19
+              ]
+            ],
+            "brier_score": 0.2523,
+            "roc_auc": 0.4713,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 24,
+                "mean_probability": 0.4702,
+                "observed_up_rate": 0.5417
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 33,
+                "mean_probability": 0.5471,
+                "observed_up_rate": 0.5758
+              }
+            ]
+          }
+        },
+        {
+          "fold": 2,
+          "status": "ok",
+          "train_start": "2024-01-11",
+          "train_end": "2025-05-16",
+          "validation_start": "2025-05-19",
+          "validation_end": "2025-08-07",
+          "test_start": "2025-08-08",
+          "test_end": "2025-10-27",
+          "selected_states": 3,
+          "state_mapping": {
+            "2": "bullish/trending",
+            "1": "bearish/high-risk",
+            "0": "sideways/low-trend"
+          },
+          "state_selection_scores": [
+            {
+              "states": 2,
+              "validation_log_likelihood_per_row": -3.934676306588309,
+              "selection_score": -4.098341797733542,
+              "train_converged": true,
+              "iterations": 5
+            },
+            {
+              "states": 3,
+              "validation_log_likelihood_per_row": -3.789172581263951,
+              "selection_score": -4.064819724245396,
+              "train_converged": true,
+              "iterations": 15
+            }
+          ],
+          "test_regime_counts": {
+            "bearish/high-risk": 1,
+            "bullish/trending": 55
+          },
+          "without_regime_hybrid_metrics": {
+            "accuracy": 0.5179,
+            "balanced_accuracy": 0.4677,
+            "precision_up": 0.537,
+            "recall_up": 0.9355,
+            "f1_up": 0.6824,
+            "class_counts": {
+              "down_or_flat": 25,
+              "up": 31
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                0,
+                25
+              ],
+              [
+                2,
+                29
+              ]
+            ],
+            "brier_score": 0.2542,
+            "roc_auc": 0.5303,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 2,
+                "mean_probability": 0.4815,
+                "observed_up_rate": 1.0
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 21,
+                "mean_probability": 0.5687,
+                "observed_up_rate": 0.5238
+              },
+              {
+                "bin_start": 0.6,
+                "bin_end": 0.7,
+                "count": 33,
+                "mean_probability": 0.6316,
+                "observed_up_rate": 0.5455
+              }
+            ]
+          }
+        },
+        {
+          "fold": 3,
+          "status": "ok",
+          "train_start": "2024-01-11",
+          "train_end": "2025-08-07",
+          "validation_start": "2025-08-08",
+          "validation_end": "2025-10-27",
+          "test_start": "2025-10-28",
+          "test_end": "2026-01-16",
+          "selected_states": 2,
+          "state_mapping": {
+            "0": "bullish/trending",
+            "1": "bearish/low-volatility"
+          },
+          "state_selection_scores": [
+            {
+              "states": 2,
+              "validation_log_likelihood_per_row": -3.964601789202009,
+              "selection_score": -4.108701620771376,
+              "train_converged": true,
+              "iterations": 6
+            },
+            {
+              "states": 3,
+              "validation_log_likelihood_per_row": -4.398794446672712,
+              "selection_score": -4.641488899842171,
+              "train_converged": true,
+              "iterations": 25
+            }
+          ],
+          "test_regime_counts": {
+            "bearish/low-volatility": 54,
+            "bullish/trending": 2
+          },
+          "without_regime_hybrid_metrics": {
+            "accuracy": 0.4464,
+            "balanced_accuracy": 0.469,
+            "precision_up": 0.425,
+            "recall_up": 0.68,
+            "f1_up": 0.5231,
+            "class_counts": {
+              "down_or_flat": 31,
+              "up": 25
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                8,
+                23
+              ],
+              [
+                8,
+                17
+              ]
+            ],
+            "brier_score": 0.2561,
+            "roc_auc": 0.5639,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 16,
+                "mean_probability": 0.4797,
+                "observed_up_rate": 0.5
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 24,
+                "mean_probability": 0.5541,
+                "observed_up_rate": 0.2917
+              },
+              {
+                "bin_start": 0.6,
+                "bin_end": 0.7,
+                "count": 16,
+                "mean_probability": 0.6217,
+                "observed_up_rate": 0.625
+              }
+            ]
+          }
+        },
+        {
+          "fold": 4,
+          "status": "ok",
+          "train_start": "2024-01-11",
+          "train_end": "2025-10-27",
+          "validation_start": "2025-10-28",
+          "validation_end": "2026-01-16",
+          "test_start": "2026-01-20",
+          "test_end": "2026-04-09",
+          "selected_states": 2,
+          "state_mapping": {
+            "1": "bullish/trending",
+            "0": "bearish/low-volatility"
+          },
+          "state_selection_scores": [
+            {
+              "states": 2,
+              "validation_log_likelihood_per_row": -3.925204413277762,
+              "selection_score": -4.054177417802788,
+              "train_converged": true,
+              "iterations": 11
+            },
+            {
+              "states": 3,
+              "validation_log_likelihood_per_row": -3.8474494389125278,
+              "selection_score": -4.06466713074415,
+              "train_converged": true,
+              "iterations": 14
+            }
+          ],
+          "test_regime_counts": {
+            "bearish/low-volatility": 56
+          },
+          "without_regime_hybrid_metrics": {
+            "accuracy": 0.5714,
+            "balanced_accuracy": 0.5471,
+            "precision_up": 0.5854,
+            "recall_up": 0.7742,
+            "f1_up": 0.6667,
+            "class_counts": {
+              "down_or_flat": 25,
+              "up": 31
+            },
+            "confusion_matrix_labels": [
+              "down_or_flat",
+              "up"
+            ],
+            "confusion_matrix": [
+              [
+                8,
+                17
+              ],
+              [
+                7,
+                24
+              ]
+            ],
+            "brier_score": 0.2503,
+            "roc_auc": 0.5303,
+            "reliability": [
+              {
+                "bin_start": 0.4,
+                "bin_end": 0.5,
+                "count": 15,
+                "mean_probability": 0.4797,
+                "observed_up_rate": 0.4667
+              },
+              {
+                "bin_start": 0.5,
+                "bin_end": 0.6,
+                "count": 40,
+                "mean_probability": 0.5303,
+                "observed_up_rate": 0.6
+              },
+              {
+                "bin_start": 0.6,
+                "bin_end": 0.7,
+                "count": 1,
+                "mean_probability": 0.6069,
+                "observed_up_rate": 0.0
+              }
+            ]
+          }
+        }
+      ],
+      "successful_folds": 4,
+      "split": {
+        "walk_forward_folds": 4,
+        "final_holdout_excluded": true,
+        "final_holdout_start": "2026-04-10"
+      },
+      "regime_model_version": "gaussian-hmm-market-regimes-v1",
+      "versions": {
+        "regime_model": "gaussian-hmm-market-regimes-v1",
+        "pomegranate": "1.1.2",
+        "torch": "2.13.0"
+      },
+      "features": [
+        "daily_return",
+        "volatility_20d",
+        "normalized_range",
+        "volume_change"
+      ],
+      "target": "next session adjusted close > current session adjusted close",
+      "data": {
+        "source": "Yahoo Finance adjusted daily OHLCV",
+        "rows": 753,
+        "sha256": "c9c33cc4dadf6252f41d8a389ad6241ee35abea27e3d3eff5bf427ec36b83fad",
+        "first_date": "2023-10-31",
+        "last_date": "2026-10-30",
+        "requested_period": "3y"
+      },
+      "configuration": {
+        "random_seed": 42,
+        "random_forest_trees": 250,
+        "lstm_lookback": 30,
+        "lstm_units": 48,
+        "lstm_epochs": 6,
+        "hmm_candidates": [
+          2,
+          3
+        ],
+        "hmm_covariance_type": "diag",
+        "validation_selection": "validation mean log likelihood with parameter penalty",
+        "preprocessing": "StandardScaler fitted per fold on HMM training rows only"
+      },
+      "limitations": [
+        "By-regime metrics are descriptive strata of the same fixed-hybrid predictions, not a causal estimate of adding regime features.",
+        "Regime state IDs and training-statistic label mappings are refit per fold and must not be compared as identical IDs across folds.",
+        "The final chronological holdout is excluded; only development walk-forward folds are summarized."
+      ]
+    }
+  ]
+}

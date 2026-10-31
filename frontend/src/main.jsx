@@ -411,10 +411,10 @@ function Prediction({ data, timeframe }) {
           </div>
         </div>
         <div className="confidence">
-          <span>Model confidence</span>
+          <span>Heuristic score (not calibrated)</span>
           <div
             role="progressbar"
-            aria-label="Model confidence, not chance of profit"
+            aria-label="Heuristic model score, not calibrated probability or chance of profit"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={data.confidence}
@@ -422,6 +422,15 @@ function Prediction({ data, timeframe }) {
             <i style={{ width: `${data.confidence}%` }} />
           </div>
         </div>
+        {data.probability_quality && <div className="explanation-grid">
+          <div><small>Raw next-session direction score</small><strong>{Number.isFinite(Number(data.probability_quality.raw_direction_probability_up)) ? `${(Number(data.probability_quality.raw_direction_probability_up) * 100).toFixed(1)}%` : "Unavailable"}</strong></div>
+          <div><small>Calibrated direction probability</small><strong>{data.probability_quality.calibrated_direction_probability_up == null ? "Unavailable" : `${(data.probability_quality.calibrated_direction_probability_up * 100).toFixed(1)}%`}</strong></div>
+          <div><small>Uncertainty estimate</small><strong>{data.probability_quality.uncertainty?.value == null ? "Unavailable" : `Component disagreement ${(data.probability_quality.uncertainty.value * 100).toFixed(1)}%`}</strong></div>
+          <div><small>Trading decision</small><strong>{String(data.probability_quality.trading_decision || "unavailable").replaceAll("_", " ")}</strong></div>
+          <div><small>No Trade control</small><strong>{data.probability_quality.no_trade_status?.startsWith("unavailable") ? "Unavailable; not applied" : data.probability_quality.no_trade_decision == null ? "Not applied" : data.probability_quality.no_trade_decision ? "No Trade" : "Trade permitted"}</strong></div>
+          {data.probability_quality.no_trade_reason && <small>{data.probability_quality.no_trade_reason}</small>}
+          <small>Live calibration is unavailable; the raw score is not a calibrated probability. Component disagreement is a dispersion estimate, not a confidence interval or chance of profit.</small>
+        </div>}
       </Card>
       <Card className="prediction-explainer">
         <div>
@@ -481,13 +490,16 @@ function Prediction({ data, timeframe }) {
                     {n.sentiment == null
                       ? "FinBERT unavailable"
                       : `score ${n.sentiment}`}
+                    {n.published_at ? ` · published ${new Date(n.published_at).toLocaleString()}` : " · publication time unavailable"}
                   </small>
+                  {/^(https?:\/\/)/i.test(n.article_url || n.url || "") && <a href={n.article_url || n.url} target="_blank" rel="noreferrer">Open source article</a>}
                 </div>
               ))}
             </div>
           ) : (
             <p className="muted">No recent news was returned.</p>
           )}
+          {data.news_alignment && <small>As of {data.news_alignment.cutoff}: {data.news_alignment.accepted} timestamped articles included; {data.news_alignment.after_cutoff} after cutoff and {data.news_alignment.missing_or_ambiguous_timestamp} with missing/ambiguous timestamps excluded. Historical archive: not used.</small>}
         </Card>
         <Card>
           <h3>Analysis & Risks</h3>
@@ -606,6 +618,9 @@ function Dashboard() {
   const [jobStatusUnavailable, setJobStatusUnavailable] = useState(false);
   const [jobStatusRetry, setJobStatusRetry] = useState(0);
   const [marketRetry, setMarketRetry] = useState(0);
+  const [regime, setRegime] = useState(null);
+  const [regimeLoading, setRegimeLoading] = useState(false);
+  const [regimeRetry, setRegimeRetry] = useState(0);
   const { symbol, setSymbol } = useStockSymbol();
   const lastLoadedSymbol = useRef(symbol);
   useEffect(() => {
@@ -654,6 +669,24 @@ function Dashboard() {
       clearInterval(timer);
     };
   }, [symbol, marketRetry]);
+  useEffect(() => {
+    let active = true;
+    setRegime(null);
+    const loadRegime = async () => {
+      if (!symbol.trim()) return;
+      setRegimeLoading(true);
+      try {
+        const result = await api(`/api/regime/${encodeURIComponent(symbol.trim())}`);
+        if (active) setRegime(result);
+      } catch (error) {
+        if (active) setRegime({ status: "unavailable", fallback_reason: error.message });
+      } finally {
+        if (active) setRegimeLoading(false);
+      }
+    };
+    loadRegime();
+    return () => { active = false; };
+  }, [symbol, regimeRetry]);
   useEffect(() => {
     let active = true;
     const refreshStatus = async () => {
@@ -907,6 +940,29 @@ function Dashboard() {
           </div>
         </Card>
       </div>
+      <Card>
+        <div className="market-title">
+          <div>
+            <div className="eyebrow">MARKET REGIME · DAILY HMM</div>
+            <h3>{regimeLoading ? "Estimating market regime…" : regime?.status === "ok" ? regime.regime : "Regime unavailable"}</h3>
+          </div>
+          {regime?.status === "ok" && <span className="muted">{regime.selected_states} states · {regime.model_version}</span>}
+        </div>
+        {regime?.status === "ok" ? (
+          <>
+            <p className="muted">Filtered state probabilities through {regime.inference_cutoff}. These describe HMM state likelihood, not probability of return or profit.</p>
+            <div className="three">
+              {Object.entries(regime.state_probabilities || {}).map(([label, probability]) => <div className="metric" key={label}><b>{(probability * 100).toFixed(1)}%</b><span>{label}</span></div>)}
+            </div>
+            <small className="muted">Training through {regime.training_window?.end}; data retrieved {regime.generated_at ? new Date(regime.generated_at).toLocaleString() : "time unavailable"}. Daily Yahoo data is not tick-level real-time.</small>
+            {regime.state_history?.length > 1 && <p className="muted">Recent regimes: {regime.state_history.slice(-8).map((item) => `${item.date} ${item.regime}`).join(" · ")}</p>}
+          </>
+        ) : (
+          <div><p className="muted">{regimeLoading ? "Using daily history to fit and validate a regime model." : regime?.fallback_reason || "Waiting for regime estimate."}</p>
+            {!regimeLoading && <button className="secondary" onClick={() => setRegimeRetry((value) => value + 1)}>Retry regime estimate</button>}
+          </div>
+        )}
+      </Card>
       <Card>
         <h3>System Architecture</h3>
         <div className="pipeline">
@@ -1208,6 +1264,8 @@ function Backtest() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState("technical");
+  const [hybridMode, setHybridMode] = useState("fixed");
   useEffect(() => {
     setD(null);
     setErr("");
@@ -1217,10 +1275,10 @@ function Backtest() {
     setErr("");
     setD(null);
     try {
-      setD(await api(`/api/backtest/${encodeURIComponent(symbol.trim())}`));
+      setD(await api(`/api/backtest/${encodeURIComponent(symbol.trim())}${mode === "hybrid" ? `/hybrid?mode=${hybridMode}` : ""}`));
     } catch (e) {
       setErr(
-        `Could not backtest ${symbol.trim() || "this stock"}: ${e.message}`,
+        `Could not run ${mode} backtest for ${symbol.trim() || "this stock"}: ${e.message}`,
       );
     } finally {
       setLoading(false);
@@ -1240,8 +1298,14 @@ function Backtest() {
         />
         <button onClick={run} disabled={loading || !symbol.trim()}>
           {loading ? <RefreshCw className="spin" /> : <Activity />}
-          {loading ? "Running backtest..." : "Run backtest"}
+          {loading ? "Running backtest..." : mode === "hybrid" ? `Run ${hybridMode} hybrid backtest` : "Run technical backtest"}
         </button>
+        <button className="secondary" onClick={() => setMode(mode === "hybrid" ? "technical" : "hybrid")} disabled={loading}>
+          Switch to {mode === "hybrid" ? "technical" : "hybrid"}
+        </button>
+        {mode === "hybrid" && <button className="secondary" onClick={() => setHybridMode(hybridMode === "fixed" ? "adaptive" : "fixed")} disabled={loading}>
+          Switch to {hybridMode === "fixed" ? "adaptive" : "fixed"} weights
+        </button>}
       </div>
       {err && <ErrorBox text={err} onRetry={run} retrying={loading} />}
       {d && (
@@ -1252,6 +1316,7 @@ function Backtest() {
               {d.assumptions.transaction_cost_pct}% fee ·{" "}
               {d.assumptions.slippage_pct}% slippage
             </p>
+            {d.model_comparison && <p className="muted">Walk-forward development folds only; final holdout excluded. Neutral historical sentiment fallback.</p>}
             <Suspense fallback={<ChartLoading />}>
               <LineChartPanel
                 data={d.dates
@@ -1260,6 +1325,11 @@ function Backtest() {
                     Strategy: d.strategy_curve[i],
                     BuyHold: d.buy_hold[i],
                     NoTrade: d.no_trade[i],
+                    ...(d.model_curves ? {
+                      FixedHybrid: d.model_curves.fixed_hybrid[i],
+                      AdaptiveHybrid: d.model_curves.adaptive_hybrid[i],
+                      CalibratedNoTrade: d.model_curves.calibrated_no_trade?.[i],
+                    } : {}),
                   }))
                   .slice(-180)}
               />
@@ -1292,6 +1362,15 @@ function Backtest() {
               </Card>
             ))}
           </div>
+          {d.model_comparison && <Card><h3>Fixed vs adaptive hybrid</h3><div className="two">
+            {[["Fixed hybrid", d.summary.fixed_hybrid], ["Adaptive hybrid", d.summary.adaptive_hybrid]].map(([name, m]) => <div key={name}><b>{name}</b><p>Return {m.total_return_pct}% · drawdown {m.max_drawdown_pct}% · Sharpe {m.annualized_sharpe} · {m.trade_count} trades</p></div>)}
+          </div><small>Selected mode: {d.selected_mode}. Adaptive weights use only the preceding validation window.</small></Card>}
+          {d.signal_audit?.length > 0 && <Card><h3>Adaptive weights</h3><p className="muted">Latest out-of-sample audit snapshot; these weights were selected on the preceding validation window, not fitted to the displayed test outcomes.</p>{(() => { const item = d.signal_audit[d.signal_audit.length - 1]; const previous = [...d.signal_audit].slice(0, -1).reverse().find((row) => row.fold !== item.fold && row.adaptive_weights); const weights = item.adaptive_weights || {}; return <><p>{item.date} · {item.regime || "regime unavailable"} · {item.adaptive_selection?.scope || item.adaptive_selection?.status || "selection status unavailable"}</p><div className="explanation-grid">{Object.entries(weights).map(([name, value]) => { const delta = previous?.adaptive_weights?.[name] == null ? null : (Number(value) - Number(previous.adaptive_weights[name])) * 100; return <div key={name}><small>{name.replaceAll("_", " ")}</small><strong>{(Number(value) * 100).toFixed(1)}%</strong><small>{delta == null ? "Change unavailable" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pp vs prior fold`}</small></div>; })}</div><small>Validation Brier score: {item.adaptive_selection?.validation_metrics?.brier_score == null ? "unavailable" : Number(item.adaptive_selection.validation_metrics.brier_score).toFixed(4)}. Component availability: {Object.entries(item.component_availability || {}).filter(([, available]) => available).map(([name]) => name).join(", ") || "unavailable"}.</small></>; })()}</Card>}
+          {d.fold_strategy_comparison?.length > 0 && <Card><h3>Fixed vs adaptive by fold</h3><p className="muted">Both strategies use identical dates and execution assumptions. Each fold resets starting cash; aggregate results above use the continuous out-of-sample period.</p><div className="table-wrap"><table><thead><tr><th>Fold</th><th>Dates</th><th>Signals</th><th>Fixed return</th><th>Adaptive return</th><th>Fixed Sharpe</th><th>Adaptive Sharpe</th></tr></thead><tbody>{d.fold_strategy_comparison.map((fold) => <tr key={fold.fold}><td>{fold.fold}</td><td>{fold.start} – {fold.end}</td><td>{fold.executable_signals}/{fold.signal_dates}</td><td>{fold.strategies.fixed_hybrid.total_return_pct}%</td><td>{fold.strategies.adaptive_hybrid.total_return_pct}%</td><td>{fold.strategies.fixed_hybrid.annualized_sharpe}</td><td>{fold.strategies.adaptive_hybrid.annualized_sharpe}</td></tr>)}</tbody></table></div></Card>}
+          {d.calibration_evaluation && <Card><h3>Calibration and uncertainty</h3><p>Fixed hybrid Brier score: raw {d.calibration_evaluation.pooled_test.raw_fixed.brier_score?.toFixed(4)} → calibrated {d.calibration_evaluation.pooled_test.calibrated_fixed.brier_score?.toFixed(4)} across untouched test folds.</p><p>No Trade abstained on {d.calibration_evaluation.no_trade_count} of {d.signal_audit?.length || 0} test dates. Its backtest returned {d.calibration_evaluation.no_trade_backtest.total_return_pct}% with {d.calibration_evaluation.no_trade_backtest.trade_count} trades.</p><small>Direction calibration is not profit probability. Uncertainty is component disagreement, not a confidence interval. No Trade retains an existing position.</small></Card>}
+          {d.model_comparison && <Card><h3>Walk-forward strategy comparison</h3><div className="three">
+            {[["Fixed hybrid", d.model_comparison.fixed_hybrid], ["LSTM only", d.model_comparison.lstm_only], ["Random Forest only", d.model_comparison.random_forest_only]].map(([name, m]) => <div key={name}><b>{name}</b><p>{m.total_return_pct}% return · {m.trade_count} trades · {m.max_drawdown_pct}% drawdown</p></div>)}
+          </div><small>{d.folds?.length || 0} folds; {d.signal_audit?.length || 0} audited out-of-sample signals.</small></Card>}
         </div>
       )}
     </Page>
@@ -1372,10 +1451,57 @@ function Models() {
     }
   };
   const evaluation = d?.model_comparison?.evaluation;
+  const components = d?.signal_explanation?.components || {};
+  const componentCards = [
+    {
+      key: "lstm",
+      name: "LSTM",
+      kind: "Sequence classifier",
+      input: "Recent seven-column price and indicator sequences.",
+      role: "40% live hybrid weight",
+      output: d?.lstm_probability_up,
+      label: "Next-session up score",
+    },
+    {
+      key: "random_forest",
+      name: "Random Forest",
+      kind: "Tabular classifier",
+      input: "Nine return, trend, momentum, and volume features.",
+      role: "40% live hybrid weight",
+      output: d?.classifier_probability_up,
+      label: "Next-session up score",
+    },
+    {
+      key: "finbert",
+      name: "FinBERT",
+      kind: "Pretrained finance text model",
+      input: "Up to eight current, timestamp-filtered headlines.",
+      role: "10% mapped live hybrid weight",
+      output: components.finbert?.probability_up,
+      label: "Mapped sentiment evidence",
+    },
+    {
+      key: "technical",
+      name: "Technical rules",
+      kind: "Deterministic evidence",
+      input: "Moving-average alignment, five-day return, RSI, and MACD.",
+      role: "10% live hybrid weight",
+      output: components.technical?.probability_up,
+      label: "Rule score mapped to 0–1",
+    },
+  ];
+  const comparisons = [
+    ["random_forest", "Random Forest"],
+    ["xgboost", "XGBoost"],
+  ].filter(([key]) => d?.model_comparison?.[key]);
+  const xgboostAvailable = d?.model_comparison?.xgboost?.accuracy != null;
+  const featureRows = Object.entries(d?.feature_importance || {})
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 5);
   return (
     <Page
       title="Models"
-      subtitle="Hybrid model components, comparison and explainability."
+      subtitle="See how the live signal is assembled, what the separate model comparison measures, and which methods are reserved for walk-forward research."
     >
       <div className="toolbar">
         <SymbolField
@@ -1385,83 +1511,127 @@ function Models() {
           disabled={loading}
         />
         <button onClick={run} disabled={loading || !symbol.trim()}>
-          {loading ? "Loading..." : "Compare models"}
+          {loading ? "Running..." : "Run model snapshot"}
         </button>
       </div>
       {err && <ErrorBox text={err} onRetry={run} retrying={loading} />}
-      <div className="three">
-        {[
-          ["LSTM", "Time-series trend probability", "TensorFlow / Keras"],
-          [
-            "FinBERT",
-            "Finance-aware news sentiment",
-            "Hugging Face Transformers",
-          ],
-          ["Random Forest", "Buy / sell / hold classifier", "Scikit-learn"],
-        ].map(([a, b, c]) => (
-          <Card key={a}>
-            <Brain />
-            <h2>{a}</h2>
-            <p>{b}</p>
-            <small>{c}</small>
-          </Card>
-        ))}
+      <div className="model-section-heading">
+        <div>
+          <span className="eyebrow">LIVE SIGNAL</span>
+          <h2>Four inputs, one fixed hybrid</h2>
+        </div>
+        <span className="model-version">weighted-probability-v1 · 1-session direction</span>
+      </div>
+      <div className="model-catalog">
+        {componentCards.map((model) => {
+          const value = Number(model.output);
+          const available = Number.isFinite(value);
+          const contribution = Number(components[model.key]?.weighted_contribution);
+          return (
+            <Card className="model-card" key={model.key}>
+              <div className="model-card-top">
+                <Brain size={18} aria-hidden="true" />
+                <span className="model-role">{model.role}</span>
+              </div>
+              <h3>{model.name}</h3>
+              <p className="model-kind">{model.kind}</p>
+              <p>{model.input}</p>
+              {d && (
+                <div className="model-output">
+                  <div><span>{model.label}</span><strong>{available ? `${(value * 100).toFixed(1)}%` : "Unavailable"}</strong></div>
+                  <div className="model-meter" aria-hidden="true"><i style={{ width: `${available ? Math.max(0, Math.min(100, value * 100)) : 0}%` }} /></div>
+                  {Number.isFinite(contribution) && <small>Hybrid contribution: {(contribution * 100).toFixed(1)} percentage points</small>}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+      <div className="model-support-grid">
+        <Card className="model-support-card">
+          <span className="eyebrow">SEPARATE ANALYSIS</span>
+          <h3>Gaussian Hidden Markov Model</h3>
+          <p>Finds latent daily market regimes from returns, rolling volatility, daily range, and volume change. Its state probabilities describe the regime estimate; they do not vote in the live direction signal.</p>
+          <Link to="/" className="text-link">View the Dashboard regime panel</Link>
+        </Card>
+        <Card className="model-support-card">
+          <span className="eyebrow">OPTIONAL COMPARISON</span>
+          <h3>XGBoost</h3>
+          <p>A separate tabular classifier. When its optional dependency and fit succeed, the snapshot reports holdout metrics and a standalone up score. It is not included in the fixed hybrid.</p>
+          {d && <span className={`availability-pill ${xgboostAvailable ? "available" : "unavailable"}`}>{xgboostAvailable ? "Comparison available" : "Unavailable for this run"}</span>}
+        </Card>
       </div>
       {d && (
-        <div className="two">
-          <Card>
-            <h3>Model Comparison</h3>
-            {evaluation?.status === "ok" ? (
-              <p className="muted">
-                Chronological holdout: trained on {evaluation.train_samples}{" "}
-                earlier rows; evaluated on {evaluation.test_samples} later rows
-                ({evaluation.test_start} to {evaluation.test_end}).
-              </p>
-            ) : (
-              evaluation && (
-                <p className="muted">
-                  Not enough labeled history for a reliable holdout evaluation (
-                  {evaluation.train_samples} samples available).
-                </p>
-              )
-            )}
-            {Object.entries(d.model_comparison || {})
-              .filter(([k]) => !["shap", "evaluation"].includes(k))
-              .map(([k, v]) => (
-                <div key={k}>
-                  <div className="metric">
-                    <b>{v.accuracy ?? "—"}%</b>
-                    <span>{k} holdout accuracy</span>
-                  </div>
-                  {v.balanced_accuracy != null && (
-                    <div className="metric">
-                      <b>{v.balanced_accuracy}%</b>
-                      <span>{k} balanced accuracy</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            <div className="selectedModelNote">
-              <strong>Model used by the hybrid: Random Forest</strong>
+        <>
+          <Card className="hybrid-result-card">
+            <div className="hybrid-result-heading">
+              <div>
+                <span className="eyebrow">CURRENT MODEL SNAPSHOT · {d.stock_symbol} · AS OF {d.as_of || "date unavailable"}</span>
+                <h3>Fixed hybrid result</h3>
+              </div>
+              <strong className={`signal-chip ${String(d.signal_type || "hold").toLowerCase()}`}>{String(d.signal_type || "HOLD").replaceAll("_", " ")}</strong>
             </div>
+            <div className="hybrid-score-row">
+              <strong>{(Number(d.signal_explanation?.ensemble_probability_up || 0) * 100).toFixed(1)}%</strong>
+              <span>raw, uncalibrated next-session up score</span>
+            </div>
+            <div className="model-equation">0.40 × LSTM + 0.40 × Random Forest + 0.10 × mapped FinBERT + 0.10 × technical rules</div>
+            <p className="muted">This is a direction score, not a probability of profit. Live calibration and No Trade thresholds are unavailable because this request does not fit validation-selected thresholds.</p>
+            {d.model_version && <small className="muted">Artifact identity: {d.model_version}</small>}
           </Card>
-          <Card>
-            <h3>SHAP Local Explanation</h3>
-            {Object.entries(d.model_comparison?.shap || {})
-              .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-              .slice(0, 8)
-              .map(([k, v]) => (
-                <div className="metric" key={k}>
-                  <b>
-                    {v > 0 ? "+" : ""}
-                    {v}
-                  </b>
-                  <span>{k}</span>
+
+          <div className="two">
+            <Card>
+              <div className="model-section-heading compact">
+                <div><span className="eyebrow">CHRONOLOGICAL HOLDOUT</span><h3>What this snapshot compares</h3></div>
+              </div>
+              {evaluation?.status === "ok" ? (
+                <p className="muted">The Random Forest and optional XGBoost comparison use {evaluation.test_samples} later rows, {evaluation.test_start} to {evaluation.test_end}, after fitting on {evaluation.train_samples} earlier rows. These are model-level holdout metrics, not the dedicated expanding walk-forward report.</p>
+              ) : (
+                <p className="muted">{evaluation ? `Holdout comparison unavailable: ${evaluation.status || "insufficient labeled history"}.` : "Holdout comparison metadata is unavailable for this snapshot."}</p>
+              )}
+              {comparisons.length ? comparisons.map(([key, name]) => {
+                const result = d.model_comparison[key];
+                return (
+                  <div className="comparison-model" key={key}>
+                    <div className="comparison-model-heading"><strong>{name}</strong><span>{key === "xgboost" ? "Optional · not a hybrid component" : "Live hybrid component"}</span></div>
+                    <div className="comparison-metrics">
+                      <div><b>{result.accuracy == null ? "—" : `${result.accuracy}%`}</b><span>Accuracy</span></div>
+                      <div><b>{result.balanced_accuracy == null ? "—" : `${result.balanced_accuracy}%`}</b><span>Balanced accuracy</span></div>
+                      {result.probability_up != null && <div><b>{(Number(result.probability_up) * 100).toFixed(1)}%</b><span>Standalone P(up)</span></div>}
+                    </div>
+                  </div>
+                );
+              }) : <p className="muted">No holdout model metrics were returned. The live component score above may still be available.</p>}
+              <p className="model-caveat">The live LSTM score is shown in the hybrid inputs; this endpoint does not report an LSTM holdout metric. For shared-date, expanding-fold model evaluation, see the Research page and its Phase 9 report.</p>
+            </Card>
+            <Card>
+              <span className="eyebrow">LOCAL EXPLANATION</span>
+              <h3>Random Forest feature importance</h3>
+              {featureRows.length ? (
+                <div className="importance-list">
+                  {featureRows.map(([feature, rawValue]) => {
+                    const value = Number(rawValue) || 0;
+                    return <div className="importance-row" key={feature}><div><span>{feature.replaceAll("_", " ")}</span><b>{value.toFixed(3)}</b></div><div className="model-meter"><i style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }} /></div></div>;
+                  })}
                 </div>
-              ))}
-          </Card>
-        </div>
+              ) : <p className="muted">Feature importance is unavailable for this run.</p>}
+              <p className="model-caveat">Impurity importance describes how this fitted forest used features; it does not establish causality. SHAP values, when returned, are local model explanations and may be unavailable.</p>
+              {Object.keys(d.model_comparison?.shap || {}).length > 0 && <details className="shap-details"><summary>Show SHAP values</summary>{Object.entries(d.model_comparison.shap).sort((a, b) => Math.abs(Number(b[1])) - Math.abs(Number(a[1]))).slice(0, 8).map(([feature, value]) => <div className="metric" key={feature}><b>{Number(value) > 0 ? "+" : ""}{value}</b><span>{feature}</span></div>)}</details>}
+            </Card>
+          </div>
+        </>
       )}
+      <div className="model-section-heading">
+        <div><span className="eyebrow">WALK-FORWARD RESEARCH</span><h2>Methods evaluated outside live prediction</h2></div>
+      </div>
+      <div className="model-research-grid">
+        <Card><h3>Adaptive weighting</h3><p>Uses prior validation Brier evidence to adjust available component weights, with bounded weights and regime-specific fallback. It is evaluated on later folds; live predictions keep fixed weights.</p></Card>
+        <Card><h3>Calibration and No Trade</h3><p>Platt or isotonic calibration is selected from past validation data. Validation-selected neutral/disagreement thresholds can mark a test signal No Trade. Neither is applied by live prediction.</p></Card>
+        <Card><h3>Direction baselines</h3><p>Previous-direction is a simple classifier baseline. Buy-and-hold and cash are portfolio baselines, not trained prediction models.</p></Card>
+      </div>
+      {!d && !loading && !err && <p className="model-empty-note">Choose a ticker and run a snapshot to see component scores, the current hybrid result, and available chronological holdout metrics.</p>}
+      <p className="disclaimer">Historical and holdout metrics depend on the selected ticker and data window. They do not promise future accuracy or returns.</p>
     </Page>
   );
 }

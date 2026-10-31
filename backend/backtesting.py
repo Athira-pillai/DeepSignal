@@ -75,6 +75,7 @@ def _simulate(prices, signal_map, starting_cash, position_fraction, cost_rate, s
 
     def transact(side, reference_price, execution_date, signal_date, reason):
         nonlocal cash, shares
+        shares_before = shares
         if side == "buy" and shares == 0:
             fill = reference_price * (1 + slippage_rate)
             equity_at_open = cash + shares * reference_price
@@ -98,6 +99,14 @@ def _simulate(prices, signal_map, starting_cash, position_fraction, cost_rate, s
         trades.append({
             "signal_date": signal_date,
             "execution_date": execution_date,
+            "signal_timestamp": f"{signal_date}T16:00:00 market local (after close)",
+            "execution_timestamp": (
+                f"{execution_date}T16:00:00 market local (scheduled close)"
+                if reason == "scheduled_end_liquidation"
+                else f"{execution_date}T09:30:00 market local (open)"
+            ),
+            "shares_before": round(float(shares_before), 8),
+            "shares_after": round(float(shares), 8),
             "side": side.upper(),
             "reason": reason,
             "reference_price": round(float(reference_price), 6),

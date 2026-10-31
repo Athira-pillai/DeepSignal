@@ -1,0 +1,1975 @@
+{
+  "report_version": "phase9-evidence-matrix-v1",
+  "status": "complete_with_documented_unavailable_experiment",
+  "generated_from": [
+    "phase7_xgboost_evaluation.json",
+    "phase3_regime_evaluation.json",
+    "phase6_news_alignment.json",
+    "phase9_e4_with_regime.json",
+    "phase9_e4_without_regime.json"
+  ],
+  "experiments": {
+    "E1_base_models": {
+      "status": "evaluated",
+      "aggregate_equal_ticker": {
+        "previous_direction": {
+          "accuracy": {
+            "equal_ticker_mean": 0.5229,
+            "across_ticker_std": 0.0279,
+            "tickers": 5
+          },
+          "balanced_accuracy": {
+            "equal_ticker_mean": 0.5117,
+            "across_ticker_std": 0.0281,
+            "tickers": 5
+          },
+          "roc_auc": {
+            "equal_ticker_mean": 0.5117,
+            "across_ticker_std": 0.0281,
+            "tickers": 5
+          },
+          "brier_score": {
+            "equal_ticker_mean": 0.4771,
+            "across_ticker_std": 0.0279,
+            "tickers": 5
+          }
+        },
+        "random_forest": {
+          "accuracy": {
+            "equal_ticker_mean": 0.5067,
+            "across_ticker_std": 0.0582,
+            "tickers": 5
+          },
+          "balanced_accuracy": {
+            "equal_ticker_mean": 0.5114,
+            "across_ticker_std": 0.0631,
+            "tickers": 5
+          },
+          "roc_auc": {
+            "equal_ticker_mean": 0.5176,
+            "across_ticker_std": 0.0697,
+            "tickers": 5
+          },
+          "brier_score": {
+            "equal_ticker_mean": 0.2607,
+            "across_ticker_std": 0.0103,
+            "tickers": 5
+          }
+        },
+        "lstm": {
+          "accuracy": {
+            "equal_ticker_mean": 0.5236,
+            "across_ticker_std": 0.0417,
+            "tickers": 5
+          },
+          "balanced_accuracy": {
+            "equal_ticker_mean": 0.4902,
+            "across_ticker_std": 0.012,
+            "tickers": 5
+          },
+          "roc_auc": {
+            "equal_ticker_mean": 0.4806,
+            "across_ticker_std": 0.0719,
+            "tickers": 5
+          },
+          "brier_score": {
+            "equal_ticker_mean": 0.2513,
+            "across_ticker_std": 0.0032,
+            "tickers": 5
+          }
+        },
+        "xgboost": {
+          "accuracy": {
+            "equal_ticker_mean": 0.5333,
+            "across_ticker_std": 0.0301,
+            "tickers": 5
+          },
+          "balanced_accuracy": {
+            "equal_ticker_mean": 0.533,
+            "across_ticker_std": 0.0349,
+            "tickers": 5
+          },
+          "roc_auc": {
+            "equal_ticker_mean": 0.5179,
+            "across_ticker_std": 0.0473,
+            "tickers": 5
+          },
+          "brier_score": {
+            "equal_ticker_mean": 0.2906,
+            "across_ticker_std": 0.0157,
+            "tickers": 5
+          }
+        },
+        "hybrid": {
+          "accuracy": {
+            "equal_ticker_mean": 0.5165,
+            "across_ticker_std": 0.0426,
+            "tickers": 5
+          },
+          "balanced_accuracy": {
+            "equal_ticker_mean": 0.4982,
+            "across_ticker_std": 0.0282,
+            "tickers": 5
+          },
+          "roc_auc": {
+            "equal_ticker_mean": 0.5092,
+            "across_ticker_std": 0.0606,
+            "tickers": 5
+          },
+          "brier_score": {
+            "equal_ticker_mean": 0.2509,
+            "across_ticker_std": 0.0039,
+            "tickers": 5
+          }
+        }
+      },
+      "per_ticker_fold_mean_and_sd": {
+        "AAPL": {
+          "previous_direction": {
+            "classification.accuracy": {
+              "mean": 0.538,
+              "std": 0.0496,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5332,
+              "std": 0.0508,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.562,
+              "std": 0.0342,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.5631,
+              "std": 0.0352,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5625,
+              "std": 0.0339,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5332,
+              "std": 0.0508,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.462,
+              "std": 0.0496,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 3.5131,
+              "std": 6.9163,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -5.9066,
+              "std": 2.5534,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.0284,
+              "std": 1.8416,
+              "folds": 4
+            }
+          },
+          "random_forest": {
+            "classification.accuracy": {
+              "mean": 0.5157,
+              "std": 0.0276,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5067,
+              "std": 0.0411,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5402,
+              "std": 0.0598,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.5942,
+              "std": 0.1904,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5541,
+              "std": 0.0804,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5296,
+              "std": 0.0518,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2573,
+              "std": 0.0087,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 1.5607,
+              "std": 6.6626,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.613,
+              "std": 1.831,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.1686,
+              "std": 1.6985,
+              "folds": 4
+            }
+          },
+          "lstm": {
+            "classification.accuracy": {
+              "mean": 0.5287,
+              "std": 0.055,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5,
+              "std": 0.0,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5287,
+              "std": 0.055,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 1.0,
+              "std": 0.0,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6904,
+              "std": 0.0488,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4871,
+              "std": 0.09,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2545,
+              "std": 0.0149,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 5.7606,
+              "std": 10.6144,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -9.5295,
+              "std": 3.7212,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.827,
+              "std": 2.4028,
+              "folds": 4
+            }
+          },
+          "xgboost": {
+            "classification.accuracy": {
+              "mean": 0.529,
+              "std": 0.0543,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5174,
+              "std": 0.0482,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5413,
+              "std": 0.04,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6457,
+              "std": 0.1741,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5835,
+              "std": 0.0839,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5182,
+              "std": 0.0598,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2882,
+              "std": 0.0052,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 2.5333,
+              "std": 9.9543,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.623,
+              "std": 3.2996,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.3822,
+              "std": 2.2677,
+              "folds": 4
+            }
+          },
+          "hybrid": {
+            "classification.accuracy": {
+              "mean": 0.5155,
+              "std": 0.0517,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5002,
+              "std": 0.0388,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5308,
+              "std": 0.0736,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.7459,
+              "std": 0.1463,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6142,
+              "std": 0.0743,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.524,
+              "std": 0.0385,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2532,
+              "std": 0.0025,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 4.2823,
+              "std": 9.4725,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -8.2207,
+              "std": 2.7862,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.5249,
+              "std": 2.4433,
+              "folds": 4
+            }
+          }
+        },
+        "MSFT": {
+          "previous_direction": {
+            "classification.accuracy": {
+              "mean": 0.4894,
+              "std": 0.0862,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4753,
+              "std": 0.092,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.4879,
+              "std": 0.0524,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.4924,
+              "std": 0.0474,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.4901,
+              "std": 0.0498,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4753,
+              "std": 0.092,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.5106,
+              "std": 0.0862,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -3.6909,
+              "std": 3.4894,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -8.6054,
+              "std": 4.4175,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -0.9792,
+              "std": 1.1901,
+              "folds": 4
+            }
+          },
+          "random_forest": {
+            "classification.accuracy": {
+              "mean": 0.5024,
+              "std": 0.1096,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5382,
+              "std": 0.0907,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.583,
+              "std": 0.2177,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.4968,
+              "std": 0.3235,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.4535,
+              "std": 0.2049,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5523,
+              "std": 0.098,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.267,
+              "std": 0.0307,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -3.8224,
+              "std": 9.7145,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.9953,
+              "std": 7.5345,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -0.4806,
+              "std": 3.3867,
+              "folds": 4
+            }
+          },
+          "lstm": {
+            "classification.accuracy": {
+              "mean": 0.4536,
+              "std": 0.0793,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4736,
+              "std": 0.0527,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.4777,
+              "std": 0.0734,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.8603,
+              "std": 0.2794,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5946,
+              "std": 0.1059,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5667,
+              "std": 0.0965,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2549,
+              "std": 0.0086,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -6.4096,
+              "std": 12.4869,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -12.7281,
+              "std": 10.3497,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -0.8902,
+              "std": 2.7731,
+              "folds": 4
+            }
+          },
+          "xgboost": {
+            "classification.accuracy": {
+              "mean": 0.5111,
+              "std": 0.0552,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5385,
+              "std": 0.0559,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5418,
+              "std": 0.1518,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.5726,
+              "std": 0.2794,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5164,
+              "std": 0.1128,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5458,
+              "std": 0.0676,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.3053,
+              "std": 0.0401,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -2.468,
+              "std": 8.6123,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.5053,
+              "std": 6.6473,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -0.119,
+              "std": 3.088,
+              "folds": 4
+            }
+          },
+          "hybrid": {
+            "classification.accuracy": {
+              "mean": 0.4535,
+              "std": 0.0801,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.48,
+              "std": 0.0532,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.477,
+              "std": 0.1038,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6464,
+              "std": 0.2967,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5148,
+              "std": 0.1417,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5289,
+              "std": 0.0867,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2527,
+              "std": 0.012,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -7.3622,
+              "std": 11.4477,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -12.2002,
+              "std": 10.1403,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -1.3211,
+              "std": 2.9202,
+              "folds": 4
+            }
+          }
+        },
+        "JPM": {
+          "previous_direction": {
+            "classification.accuracy": {
+              "mean": 0.4982,
+              "std": 0.0759,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4889,
+              "std": 0.0796,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5476,
+              "std": 0.06,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.5527,
+              "std": 0.0666,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5501,
+              "std": 0.0631,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4889,
+              "std": 0.0796,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.5018,
+              "std": 0.0759,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -1.665,
+              "std": 3.3833,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.856,
+              "std": 2.5908,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -0.4328,
+              "std": 1.0386,
+              "folds": 4
+            }
+          },
+          "random_forest": {
+            "classification.accuracy": {
+              "mean": 0.4582,
+              "std": 0.0927,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4617,
+              "std": 0.0728,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.4428,
+              "std": 0.2157,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.4763,
+              "std": 0.301,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.4456,
+              "std": 0.2675,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4743,
+              "std": 0.0443,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2692,
+              "std": 0.0169,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": -1.6037,
+              "std": 4.8579,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -6.6081,
+              "std": 3.1658,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": -0.8762,
+              "std": 2.264,
+              "folds": 4
+            }
+          },
+          "lstm": {
+            "classification.accuracy": {
+              "mean": 0.5555,
+              "std": 0.0387,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5,
+              "std": 0.0,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5555,
+              "std": 0.0387,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 1.0,
+              "std": 0.0,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.7137,
+              "std": 0.0317,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4095,
+              "std": 0.066,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2506,
+              "std": 0.0059,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 4.1891,
+              "std": 3.8787,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -8.1884,
+              "std": 3.4244,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.0934,
+              "std": 0.9412,
+              "folds": 4
+            }
+          },
+          "xgboost": {
+            "classification.accuracy": {
+              "mean": 0.5067,
+              "std": 0.0304,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4945,
+              "std": 0.0312,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5538,
+              "std": 0.0521,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6533,
+              "std": 0.1736,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5874,
+              "std": 0.0669,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4654,
+              "std": 0.0252,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.303,
+              "std": 0.0222,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 0.1657,
+              "std": 4.9613,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.0339,
+              "std": 3.9129,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.3819,
+              "std": 1.3377,
+              "folds": 4
+            }
+          },
+          "hybrid": {
+            "classification.accuracy": {
+              "mean": 0.5158,
+              "std": 0.0413,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4822,
+              "std": 0.0227,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5434,
+              "std": 0.0438,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.8293,
+              "std": 0.1728,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6499,
+              "std": 0.0631,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4661,
+              "std": 0.0571,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2524,
+              "std": 0.0078,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 1.8125,
+              "std": 2.9031,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.5761,
+              "std": 3.9685,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.5441,
+              "std": 0.7542,
+              "folds": 4
+            }
+          }
+        },
+        "JNJ": {
+          "previous_direction": {
+            "classification.accuracy": {
+              "mean": 0.5333,
+              "std": 0.0374,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5227,
+              "std": 0.0392,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5887,
+              "std": 0.0387,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.5929,
+              "std": 0.0329,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5908,
+              "std": 0.0358,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5227,
+              "std": 0.0392,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.4667,
+              "std": 0.0374,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 5.0019,
+              "std": 4.371,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -4.8008,
+              "std": 1.9197,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.8662,
+              "std": 1.4322,
+              "folds": 4
+            }
+          },
+          "random_forest": {
+            "classification.accuracy": {
+              "mean": 0.4576,
+              "std": 0.0224,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4468,
+              "std": 0.039,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5256,
+              "std": 0.0473,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.5229,
+              "std": 0.1317,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.5175,
+              "std": 0.0602,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.426,
+              "std": 0.0823,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.266,
+              "std": 0.004,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 1.5445,
+              "std": 2.4903,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -4.2006,
+              "std": 1.7914,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 0.6646,
+              "std": 1.1613,
+              "folds": 4
+            }
+          },
+          "lstm": {
+            "classification.accuracy": {
+              "mean": 0.5556,
+              "std": 0.0185,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.496,
+              "std": 0.008,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5664,
+              "std": 0.0217,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.9485,
+              "std": 0.1029,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.7068,
+              "std": 0.0254,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4069,
+              "std": 0.0388,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2483,
+              "std": 0.0027,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 11.9426,
+              "std": 3.9074,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -4.5272,
+              "std": 0.7612,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 3.2467,
+              "std": 0.6669,
+              "folds": 4
+            }
+          },
+          "xgboost": {
+            "classification.accuracy": {
+              "mean": 0.5377,
+              "std": 0.0342,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5263,
+              "std": 0.0597,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.6022,
+              "std": 0.0662,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6192,
+              "std": 0.1168,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6004,
+              "std": 0.0292,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4793,
+              "std": 0.0504,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2906,
+              "std": 0.0102,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 4.5851,
+              "std": 1.819,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -3.7755,
+              "std": 0.997,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.9659,
+              "std": 0.6308,
+              "folds": 4
+            }
+          },
+          "hybrid": {
+            "classification.accuracy": {
+              "mean": 0.5247,
+              "std": 0.0379,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.482,
+              "std": 0.0152,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.5561,
+              "std": 0.0194,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.8349,
+              "std": 0.2052,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6581,
+              "std": 0.0757,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.4356,
+              "std": 0.056,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.252,
+              "std": 0.0019,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 7.4973,
+              "std": 4.8212,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -4.5704,
+              "std": 1.2986,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 2.3151,
+              "std": 1.1516,
+              "folds": 4
+            }
+          }
+        },
+        "XOM": {
+          "previous_direction": {
+            "classification.accuracy": {
+              "mean": 0.5554,
+              "std": 0.0727,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5386,
+              "std": 0.0657,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.6057,
+              "std": 0.0869,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6059,
+              "std": 0.1042,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6057,
+              "std": 0.0953,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5386,
+              "std": 0.0657,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.4446,
+              "std": 0.0727,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 4.2027,
+              "std": 2.848,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -5.3723,
+              "std": 1.6594,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.2039,
+              "std": 0.7713,
+              "folds": 4
+            }
+          },
+          "random_forest": {
+            "classification.accuracy": {
+              "mean": 0.5998,
+              "std": 0.033,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.6038,
+              "std": 0.0424,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.6706,
+              "std": 0.0883,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6351,
+              "std": 0.1318,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6409,
+              "std": 0.0399,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.6059,
+              "std": 0.0231,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2442,
+              "std": 0.0048,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 8.4904,
+              "std": 5.3255,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -4.3659,
+              "std": 1.4609,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 2.3674,
+              "std": 1.2072,
+              "folds": 4
+            }
+          },
+          "lstm": {
+            "classification.accuracy": {
+              "mean": 0.5245,
+              "std": 0.0666,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.4813,
+              "std": 0.0375,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.558,
+              "std": 0.0441,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.875,
+              "std": 0.25,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6663,
+              "std": 0.0925,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5327,
+              "std": 0.0362,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.2483,
+              "std": 0.0019,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 7.013,
+              "std": 10.3908,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -7.6739,
+              "std": 2.552,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.1351,
+              "std": 1.8405,
+              "folds": 4
+            }
+          },
+          "xgboost": {
+            "classification.accuracy": {
+              "mean": 0.5821,
+              "std": 0.033,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5885,
+              "std": 0.0419,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.6628,
+              "std": 0.1056,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.6116,
+              "std": 0.1609,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6188,
+              "std": 0.0617,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5806,
+              "std": 0.0349,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.266,
+              "std": 0.0102,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 5.3227,
+              "std": 4.138,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -6.0834,
+              "std": 1.0844,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.6094,
+              "std": 1.2029,
+              "folds": 4
+            }
+          },
+          "hybrid": {
+            "classification.accuracy": {
+              "mean": 0.5732,
+              "std": 0.0501,
+              "folds": 4
+            },
+            "classification.balanced_accuracy": {
+              "mean": 0.5465,
+              "std": 0.0572,
+              "folds": 4
+            },
+            "classification.precision_up": {
+              "mean": 0.6059,
+              "std": 0.0749,
+              "folds": 4
+            },
+            "classification.recall_up": {
+              "mean": 0.7907,
+              "std": 0.1097,
+              "folds": 4
+            },
+            "classification.f1_up": {
+              "mean": 0.6779,
+              "std": 0.0297,
+              "folds": 4
+            },
+            "classification.roc_auc": {
+              "mean": 0.5916,
+              "std": 0.0513,
+              "folds": 4
+            },
+            "classification.brier_score": {
+              "mean": 0.244,
+              "std": 0.0048,
+              "folds": 4
+            },
+            "trading.cumulative_return_pct": {
+              "mean": 6.3675,
+              "std": 3.5034,
+              "folds": 4
+            },
+            "trading.max_drawdown_pct": {
+              "mean": -8.5742,
+              "std": 2.0969,
+              "folds": 4
+            },
+            "trading.annualized_sharpe": {
+              "mean": 1.4088,
+              "std": 0.6454,
+              "folds": 4
+            }
+          }
+        }
+      }
+    },
+    "E2_ensemble_effect": {
+      "status": "evaluated_single_ticker_trading_comparison",
+      "best_single": "lstm_only",
+      "lstm_only": {
+        "starting_cash": 100000.0,
+        "ending_equity": 125419.96,
+        "total_return_pct": 25.42,
+        "cagr_pct": 29.0216,
+        "max_drawdown_pct": -13.7985,
+        "annualized_sharpe": 1.2518,
+        "sessions": 224,
+        "exposure_pct": 99.1111,
+        "trade_count": 2,
+        "turnover": 1.9131,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "fixed_hybrid": {
+        "starting_cash": 100000.0,
+        "ending_equity": 125103.78,
+        "total_return_pct": 25.1038,
+        "cagr_pct": 28.6558,
+        "max_drawdown_pct": -16.1417,
+        "annualized_sharpe": 1.2878,
+        "sessions": 224,
+        "exposure_pct": 88.0,
+        "trade_count": 12,
+        "turnover": 11.2597,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "same_oos_window": {
+        "start": "2025-05-16",
+        "end": "2026-04-09"
+      }
+    },
+    "E3_adaptive_fusion": {
+      "status": "evaluated_single_ticker",
+      "fixed": {
+        "starting_cash": 100000.0,
+        "ending_equity": 125103.78,
+        "total_return_pct": 25.1038,
+        "cagr_pct": 28.6558,
+        "max_drawdown_pct": -16.1417,
+        "annualized_sharpe": 1.2878,
+        "sessions": 224,
+        "exposure_pct": 88.0,
+        "trade_count": 12,
+        "turnover": 11.2597,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "adaptive": {
+        "starting_cash": 100000.0,
+        "ending_equity": 114280.24,
+        "total_return_pct": 14.2802,
+        "cagr_pct": 16.2031,
+        "max_drawdown_pct": -18.7356,
+        "annualized_sharpe": 0.8238,
+        "sessions": 224,
+        "exposure_pct": 84.8889,
+        "trade_count": 16,
+        "turnover": 14.8072,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "per_fold": [
+        {
+          "fold": 1,
+          "start": "2025-05-16",
+          "end": "2025-08-07",
+          "signal_dates": 57,
+          "executable_signals": 56,
+          "strategies": {
+            "fixed_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 105026.9,
+              "total_return_pct": 5.0269,
+              "cagr_pct": 25.1974,
+              "max_drawdown_pct": -5.6063,
+              "annualized_sharpe": 1.3525,
+              "sessions": 55,
+              "exposure_pct": 69.6429,
+              "trade_count": 8,
+              "turnover": 8.0,
+              "window_start": "2025-05-16",
+              "window_end": "2025-08-06"
+            },
+            "adaptive_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 101074.11,
+              "total_return_pct": 1.0741,
+              "cagr_pct": 5.0169,
+              "max_drawdown_pct": -7.3218,
+              "annualized_sharpe": 0.3746,
+              "sessions": 55,
+              "exposure_pct": 60.7143,
+              "trade_count": 10,
+              "turnover": 10.0048,
+              "window_start": "2025-05-16",
+              "window_end": "2025-08-06"
+            }
+          }
+        },
+        {
+          "fold": 2,
+          "start": "2025-08-08",
+          "end": "2025-10-27",
+          "signal_dates": 56,
+          "executable_signals": 55,
+          "strategies": {
+            "fixed_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 115082.0,
+              "total_return_pct": 15.082,
+              "cagr_pct": 92.6199,
+              "max_drawdown_pct": -5.4175,
+              "annualized_sharpe": 2.8725,
+              "sessions": 54,
+              "exposure_pct": 96.3636,
+              "trade_count": 2,
+              "turnover": 2.0205,
+              "window_start": "2025-08-08",
+              "window_end": "2025-10-24"
+            },
+            "adaptive_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 115082.0,
+              "total_return_pct": 15.082,
+              "cagr_pct": 92.6199,
+              "max_drawdown_pct": -5.4175,
+              "annualized_sharpe": 2.8725,
+              "sessions": 54,
+              "exposure_pct": 96.3636,
+              "trade_count": 2,
+              "turnover": 2.0205,
+              "window_start": "2025-08-08",
+              "window_end": "2025-10-24"
+            }
+          }
+        },
+        {
+          "fold": 3,
+          "start": "2025-10-28",
+          "end": "2026-01-16",
+          "signal_dates": 56,
+          "executable_signals": 55,
+          "strategies": {
+            "fixed_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 97927.82,
+              "total_return_pct": -2.0722,
+              "cagr_pct": -9.3095,
+              "max_drawdown_pct": -7.8556,
+              "annualized_sharpe": -0.7194,
+              "sessions": 54,
+              "exposure_pct": 83.6364,
+              "trade_count": 4,
+              "turnover": 3.9135,
+              "window_start": "2025-10-28",
+              "window_end": "2026-01-15"
+            },
+            "adaptive_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 95790.22,
+              "total_return_pct": -4.2098,
+              "cagr_pct": -18.1851,
+              "max_drawdown_pct": -9.8669,
+              "annualized_sharpe": -1.4568,
+              "sessions": 54,
+              "exposure_pct": 96.3636,
+              "trade_count": 2,
+              "turnover": 1.9413,
+              "window_start": "2025-10-28",
+              "window_end": "2026-01-15"
+            }
+          }
+        },
+        {
+          "fold": 4,
+          "start": "2026-01-20",
+          "end": "2026-04-09",
+          "signal_dates": 56,
+          "executable_signals": 55,
+          "strategies": {
+            "fixed_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 97797.91,
+              "total_return_pct": -2.2021,
+              "cagr_pct": -9.8696,
+              "max_drawdown_pct": -15.5921,
+              "annualized_sharpe": -0.3058,
+              "sessions": 54,
+              "exposure_pct": 85.4545,
+              "trade_count": 4,
+              "turnover": 4.0181,
+              "window_start": "2026-01-20",
+              "window_end": "2026-04-08"
+            },
+            "adaptive_hybrid": {
+              "starting_cash": 100000.0,
+              "ending_equity": 95128.83,
+              "total_return_pct": -4.8712,
+              "cagr_pct": -20.7882,
+              "max_drawdown_pct": -16.3777,
+              "annualized_sharpe": -0.903,
+              "sessions": 54,
+              "exposure_pct": 70.9091,
+              "trade_count": 6,
+              "turnover": 5.9017,
+              "window_start": "2026-01-20",
+              "window_end": "2026-04-08"
+            }
+          }
+        }
+      ]
+    },
+    "E4_regime_effect": {
+      "status": "evaluated_paired_same_data",
+      "source_sha256": "94bf5ba4720da5dbbf597317ee44ac0f143528f7fb0f9c13eaf79f19418c33e3",
+      "retained_csv_file_sha256": "da05b7c464a370c1cad7ad21a787ee64615e001c75cd87a20ac709ddbc7aca09",
+      "same_source_hash": true,
+      "same_oos_dates": true,
+      "same_adaptive_signal_sequence": false,
+      "same_adaptive_equity_curve": true,
+      "adaptive_signal_differences": [
+        {
+          "date": "2025-08-05",
+          "with_regime": "BUY",
+          "without_regime": "HOLD"
+        }
+      ],
+      "window": {
+        "start": "2025-05-16",
+        "end": "2026-04-09"
+      },
+      "folds": 4,
+      "with_regime": {
+        "starting_cash": 100000.0,
+        "ending_equity": 114280.24,
+        "total_return_pct": 14.2802,
+        "cagr_pct": 16.2031,
+        "max_drawdown_pct": -18.7356,
+        "annualized_sharpe": 0.8238,
+        "sessions": 224,
+        "exposure_pct": 84.8889,
+        "trade_count": 16,
+        "turnover": 14.8072,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "without_regime": {
+        "starting_cash": 100000.0,
+        "ending_equity": 114280.24,
+        "total_return_pct": 14.2802,
+        "cagr_pct": 16.2031,
+        "max_drawdown_pct": -18.7356,
+        "annualized_sharpe": 0.8238,
+        "sessions": 224,
+        "exposure_pct": 84.8889,
+        "trade_count": 16,
+        "turnover": 14.8072,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "with_regime_selection_scopes": {
+        "regime_validation": 220,
+        "overall_validation": 5
+      },
+      "without_regime_selection_scopes": {
+        "overall_validation": 225
+      },
+      "with_regime_run_id": "20261031T143310.903036Z",
+      "without_regime_run_id": "20261031T143113.516158Z"
+    },
+    "E5_sentiment_ablation": {
+      "status": "not_evaluable_missing_eligible_point_in_time_historical_news",
+      "eligible_historical_article_count": null,
+      "reason": "No permitted, complete point-in-time news archive was available; current headlines are not substituted into historical rows."
+    },
+    "E6_uncertainty_filter": {
+      "status": "evaluated_single_ticker",
+      "fixed_raw_brier": 0.2532008054356959,
+      "calibrated_fixed_brier": 0.2675680914080533,
+      "no_trade_decisions": 37,
+      "audited_signals": 225,
+      "no_trade_backtest": {
+        "starting_cash": 100000.0,
+        "ending_equity": 110185.15,
+        "total_return_pct": 10.1851,
+        "cagr_pct": 11.5292,
+        "max_drawdown_pct": -13.7985,
+        "annualized_sharpe": 0.7945,
+        "sessions": 224,
+        "exposure_pct": 61.3333,
+        "trade_count": 8,
+        "turnover": 7.6744,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      },
+      "fixed_hybrid_backtest": {
+        "starting_cash": 100000.0,
+        "ending_equity": 125103.78,
+        "total_return_pct": 25.1038,
+        "cagr_pct": 28.6558,
+        "max_drawdown_pct": -16.1417,
+        "annualized_sharpe": 1.2878,
+        "sessions": 224,
+        "exposure_pct": 88.0,
+        "trade_count": 12,
+        "turnover": 11.2597,
+        "window_start": "2025-05-16",
+        "window_end": "2026-04-09"
+      }
+    },
+    "E7_trading_validation": {
+      "status": "evaluated_single_ticker",
+      "strategies": {
+        "fixed_hybrid": {
+          "starting_cash": 100000.0,
+          "ending_equity": 125103.78,
+          "total_return_pct": 25.1038,
+          "cagr_pct": 28.6558,
+          "max_drawdown_pct": -16.1417,
+          "annualized_sharpe": 1.2878,
+          "sessions": 224,
+          "exposure_pct": 88.0,
+          "trade_count": 12,
+          "turnover": 11.2597,
+          "window_start": "2025-05-16",
+          "window_end": "2026-04-09"
+        },
+        "lstm_only": {
+          "starting_cash": 100000.0,
+          "ending_equity": 125419.96,
+          "total_return_pct": 25.42,
+          "cagr_pct": 29.0216,
+          "max_drawdown_pct": -13.7985,
+          "annualized_sharpe": 1.2518,
+          "sessions": 224,
+          "exposure_pct": 99.1111,
+          "trade_count": 2,
+          "turnover": 1.9131,
+          "window_start": "2025-05-16",
+          "window_end": "2026-04-09"
+        },
+        "random_forest_only": {
+          "starting_cash": 100000.0,
+          "ending_equity": 119377.15,
+          "total_return_pct": 19.3772,
+          "cagr_pct": 22.0496,
+          "max_drawdown_pct": -15.1112,
+          "annualized_sharpe": 1.1137,
+          "sessions": 224,
+          "exposure_pct": 59.5556,
+          "trade_count": 42,
+          "turnover": 41.4641,
+          "window_start": "2025-05-16",
+          "window_end": "2026-04-09"
+        },
+        "buy_and_hold": {
+          "starting_cash": 100000.0,
+          "ending_equity": 122791.79,
+          "total_return_pct": 22.7918,
+          "cagr_pct": 25.984,
+          "max_drawdown_pct": -13.7985,
+          "annualized_sharpe": 1.1746,
+          "sessions": 224,
+          "exposure_pct": 99.5556,
+          "trade_count": 2,
+          "turnover": 1.9311,
+          "window_start": "2025-05-16",
+          "window_end": "2026-04-09"
+        },
+        "cash": {
+          "starting_cash": 100000.0,
+          "ending_equity": 100000.0,
+          "total_return_pct": 0.0,
+          "cagr_pct": 0.0,
+          "max_drawdown_pct": 0.0,
+          "annualized_sharpe": 0.0,
+          "sessions": 224,
+          "exposure_pct": 0.0,
+          "trade_count": 0,
+          "turnover": 0.0,
+          "window_start": "2025-05-16",
+          "window_end": "2026-04-09"
+        }
+      }
+    }
+  },
+  "data_and_design": {
+    "E1_source": "Yahoo Finance",
+    "E1_requested_period": "3y",
+    "E1_successful_tickers": [
+      "AAPL",
+      "MSFT",
+      "JPM",
+      "JNJ",
+      "XOM"
+    ],
+    "E1_folds_per_ticker": 4,
+    "E1_final_holdout_excluded_from_walk_forward_means": true,
+    "E1_final_holdout_reused_from_phase1": true,
+    "E2_E3_E6_E7_symbol": "AAPL",
+    "E2_E3_E6_E7_window": {
+      "start": "2025-05-16",
+      "end": "2026-04-09"
+    },
+    "E2_E3_E6_E7_data_sha256": "94bf5ba4720da5dbbf597317ee44ac0f143528f7fb0f9c13eaf79f19418c33e3",
+    "E2_E3_E6_E7_csv_file_sha256": "da05b7c464a370c1cad7ad21a787ee64615e001c75cd87a20ac709ddbc7aca09",
+    "target": "Next-session adjusted close greater than current adjusted close.",
+    "classifier_costs_pct": {
+      "fee": 0.06,
+      "slippage": 0.04
+    },
+    "trading_execution": "Signal after daily close; next available session open; long-only; fractional shares; terminal liquidation.",
+    "feature_columns": [
+      "return_1d",
+      "return_5d",
+      "sma20_gap",
+      "sma50_gap",
+      "rsi",
+      "macd",
+      "macd_signal",
+      "bb_position",
+      "volume_change"
+    ],
+    "configuration": {
+      "lookback": 30,
+      "lstm_units": 48,
+      "epochs": 6,
+      "rf_trees": 250,
+      "transaction_cost_pct": 0.06,
+      "slippage_pct": 0.04,
+      "include_xgboost": true,
+      "data_source": "Yahoo Finance adjusted daily OHLCV",
+      "features": [
+        "return_1d",
+        "return_5d",
+        "sma20_gap",
+        "sma50_gap",
+        "rsi",
+        "macd",
+        "macd_signal",
+        "bb_position",
+        "volume_change"
+      ],
+      "target": "next close > current close",
+      "hybrid_weights": {
+        "lstm": 0.4,
+        "random_forest": 0.4,
+        "finbert": 0.1,
+        "technical": 0.1
+      },
+      "hybrid_version": "weighted-probability-v1"
+    },
+    "regime_report_is_stratification_not_causal_ablation": true,
+    "prior_regime_stratification_status": "ok",
+    "news_alignment_status": "historical_corpus_unavailable_no_ablation"
+  },
+  "reproducibility": {
+    "source_run_ids": {
+      "E1": "20261031T141506.545871Z",
+      "E2_E7_hybrid": "20261031T143310.903036Z",
+      "E3": "20261031T143310.903036Z",
+      "E6": "20261031T143310.903036Z",
+      "E4_with_regime": "20261031T143310.903036Z",
+      "E4_without_regime": "20261031T143113.516158Z"
+    },
+    "E1_data_hashes_by_ticker": {
+      "AAPL": "c993e7f7d8372896b6572f3d5c83b4cb34455c025121343989bd0b622b621e8c",
+      "MSFT": "b04d3e2b379e4cc92fc257fa39e9ed66584b511d3ff9c6702c02c1a33f6d5e2b",
+      "JPM": "db23ca2155b24539d3efe3b5bf3d7fec928e3a2b1db18a1bae797777b8604856",
+      "JNJ": "28bf169d669ad8d738690bef1ae880136af84a8a96a8e9ea25660e421f573c43",
+      "XOM": "fd57fadc81f9ee5e3b76eb69889861ecb5035024f588fe6b3bfaef19e26079ce"
+    },
+    "E1_model_versions": {
+      "application": "1.0.0",
+      "evaluation_model": "direction-rf-walk-forward-v2",
+      "lstm_model": "direction-lstm-walk-forward-v2",
+      "hybrid_model": "weighted-probability-v1",
+      "python_packages": {
+        "numpy": "2.5.2",
+        "pandas": "3.0.5",
+        "scikit-learn": "1.9.0",
+        "yfinance": "1.7.0",
+        "tensorflow": "2.21.0",
+        "xgboost": "3.4.1",
+        "transformers": "5.16.1"
+      }
+    },
+    "E2_E7_versions": {
+      "trained_model_artifact": null,
+      "strategy": "walk-forward-hybrid-next-open-v1",
+      "backtest_engine": "next-open-long-only-v1",
+      "adaptive_ensemble": "validation-brier-regime-weights-v1",
+      "regime_model": "gaussian-hmm-market-regimes-v1"
+    },
+    "E3_versions": {
+      "trained_model_artifact": null,
+      "strategy": "walk-forward-hybrid-next-open-v1",
+      "backtest_engine": "next-open-long-only-v1",
+      "adaptive_ensemble": "validation-brier-regime-weights-v1",
+      "regime_model": "gaussian-hmm-market-regimes-v1"
+    },
+    "E6_versions": {
+      "trained_model_artifact": null,
+      "strategy": "walk-forward-hybrid-next-open-v1",
+      "backtest_engine": "next-open-long-only-v1",
+      "adaptive_ensemble": "validation-brier-regime-weights-v1",
+      "regime_model": "gaussian-hmm-market-regimes-v1"
+    }
+  },
+  "artifacts": {
+    "confusion_matrices_and_reliability_bins": "Embedded per ticker and fold in phase7_xgboost_evaluation.json.",
+    "equity_curves_trades_and_cost_audit": [
+      "phase9_e4_with_regime.json"
+    ],
+    "regime_strata": "phase3_regime_evaluation.json",
+    "E4_exact_input_csv": "phase9_e4_aapl_prices.csv",
+    "E4_with_regime": "phase9_e4_with_regime.json",
+    "E4_without_regime": "phase9_e4_without_regime.json"
+  },
+  "limitations": [
+    "Five selected large-cap symbols and one recent three-year provider window do not represent a broad universe.",
+    "E1 fold means are descriptive; cross-ticker standard deviation is not a confidence interval. XGBoost's higher accuracy coincides with a worse Brier score.",
+    "The final holdout was previously evaluated during Phase 1 and is exploratory; Phase 9 E1 fold metrics exclude it.",
+    "E2 through E7, except E1, are based on one AAPL window and four folds.",
+    "E4 tests regime-specific versus overall validation weight selection, not whether an HMM regime label improves the forecasting model generally. Small regime groups can fall back to overall validation evidence.",
+    "E5 could not be run without eligible historical point-in-time news; historical sentiment remains neutral.",
+    "Calibration worsened pooled Brier in Phase 5; live calibration and No Trade thresholds remain unavailable.",
+    "Daily adjusted Yahoo bars, constant transaction costs/slippage, and next-open fills omit intraday path, spread, market impact, partial fills, taxes, and funding costs.",
+    "LSTM CPU training on native Windows is nondeterministic to some extent; exact floating-point replay may vary. E4 arms share the identical saved source CSV and dates.",
+    "No significance tests or confidence intervals were run; no result establishes future profitability."
+  ]
+}
