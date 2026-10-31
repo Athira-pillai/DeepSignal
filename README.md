@@ -51,8 +51,8 @@ The Vite dev server proxies `/api` to `http://localhost:8000`.
 From the project root, install the backend development dependencies and run the offline validation suite:
 
 ```powershell
-.\.venv\Scripts\python -m pip install -r backend/requirements-dev.txt
-.\.venv\Scripts\python -m unittest discover -s backend/tests -v
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-dev.txt
+.\backend\.venv\Scripts\python.exe -m unittest discover -s backend/tests -v
 ```
 
 The tests mock market/news providers and model dependencies, so they do not make network requests or download model weights.
