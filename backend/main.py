@@ -162,6 +162,10 @@ def indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_news(symbol: str):
     articles = []
+    search_terms = [symbol.strip()]
+    normalized_symbol = re.sub(r"\.(NS|BO)$", "", symbol.strip(), flags=re.IGNORECASE)
+    if normalized_symbol and normalized_symbol.casefold() != symbol.strip().casefold():
+        search_terms.append(normalized_symbol)
 
     def add_article(title, published_at=None, source=None, url=None):
         if not title:
@@ -178,42 +182,57 @@ def get_news(symbol: str):
             "url": url,
         })
 
-    # NewsAPI is optional and its free tier may not include the everything
-    # endpoint. Keep it as the first source when configured, then fall back.
-    key = os.getenv("NEWS_API_KEY", "").strip()
-    if key:
-        try:
-            r = requests.get(
-                "https://newsapi.org/v2/everything",
-                params={"q": symbol, "language": "en", "sortBy": "publishedAt", "pageSize": 10, "apiKey": key},
-                timeout=12,
-            )
-            r.raise_for_status()
-            for a in r.json().get("articles", []):
-                add_article(a.get("title"), a.get("publishedAt"), (a.get("source") or {}).get("name", "NewsAPI"), a.get("url"))
-        except Exception:
-            pass
-
-    # Yahoo's search endpoint supplies recent news even when yfinance's
-    # Ticker.news is empty or its response shape changes between releases.
-    if len(articles) < 8:
+    # Yahoo may index headlines under the issuer name instead of an exchange
+    # ticker. Use the quote result to discover that name, then search it too.
+    searched_terms = set()
+    resolved_terms = []
+    while search_terms and len(searched_terms) < 4 and len(articles) < 8:
+        query = search_terms.pop(0).strip()
+        if not query or query.casefold() in searched_terms:
+            continue
+        searched_terms.add(query.casefold())
+        resolved_terms.append(query)
         try:
             r = requests.get(
                 "https://query1.finance.yahoo.com/v1/finance/search",
-                params={"q": symbol, "newsCount": 10, "quotesCount": 0},
+                params={"q": query, "newsCount": 10, "quotesCount": 5},
                 headers={"User-Agent": "Mozilla/5.0"},
                 timeout=12,
             )
             r.raise_for_status()
-            for item in r.json().get("news", []):
+            payload = r.json()
+            for item in payload.get("news", []):
                 add_article(
                     item.get("title"),
                     item.get("providerPublishTime"),
                     item.get("publisher", "Yahoo Finance"),
                     item.get("link"),
                 )
+            for quote in payload.get("quotes", []):
+                issuer_name = quote.get("longname") or quote.get("shortname")
+                if issuer_name and issuer_name.casefold() not in searched_terms and issuer_name not in search_terms:
+                    search_terms.append(issuer_name)
         except Exception:
             pass
+
+    # NewsAPI is optional and its free tier may not include the everything
+    # endpoint. Search the ticker aliases and any discovered issuer name.
+    key = os.getenv("NEWS_API_KEY", "").strip()
+    if key and len(articles) < 8:
+        for query in [symbol.strip(), normalized_symbol, *resolved_terms]:
+            if not query or len(articles) >= 8:
+                continue
+            try:
+                r = requests.get(
+                    "https://newsapi.org/v2/everything",
+                    params={"q": query, "language": "en", "sortBy": "publishedAt", "pageSize": 10, "apiKey": key},
+                    timeout=12,
+                )
+                r.raise_for_status()
+                for a in r.json().get("articles", []):
+                    add_article(a.get("title"), a.get("publishedAt"), (a.get("source") or {}).get("name", "NewsAPI"), a.get("url"))
+            except Exception:
+                pass
 
     if len(articles) < 8:
         try:

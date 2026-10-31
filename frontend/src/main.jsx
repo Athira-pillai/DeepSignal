@@ -949,10 +949,29 @@ function Dashboard() {
   );
 }
 function CandleChart({ data, symbol }) {
+  const [hoveredCandle, setHoveredCandle] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const chartRef = useRef(null);
   const rows = data.slice(-60),
     w = 760,
     h = 250,
     p = { l: 48, r: 16, t: 12, b: 25 };
+  const currency = /\.(NS|BO)$/i.test(symbol) ? "INR" : "USD";
+  const formatPrice = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const showCandleTooltip = (event, candle) => {
+    const bounds = chartRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setHoveredCandle(candle);
+    setTooltipPosition({
+      x: Math.max(8, Math.min(event.clientX - bounds.left + 14, bounds.width - 225)),
+      y: Math.max(8, Math.min(event.clientY - bounds.top + 14, bounds.height - 145)),
+    });
+  };
   const vals = rows.flatMap((x) => [x.high, x.low]),
     min = Math.min(...vals),
     max = Math.max(...vals),
@@ -961,11 +980,12 @@ function CandleChart({ data, symbol }) {
     step = (w - p.l - p.r) / rows.length,
     bw = Math.max(3, step * 0.55);
   return (
-    <div className="candle-wrap">
+    <div className="candle-wrap" ref={chartRef}>
       <svg
         viewBox={`0 0 ${w} ${h}`}
         role="img"
         aria-label={`${symbol} daily candlestick price chart`}
+        onMouseLeave={() => setHoveredCandle(null)}
       >
         <defs>
           <linearGradient id="volumeFade" x1="0" y1="0" x2="0" y2="1">
@@ -1002,7 +1022,23 @@ function CandleChart({ data, symbol }) {
               (d.volume / (Math.max(...rows.map((a) => a.volume)) || 1)) * 35,
             );
           return (
-            <g key={d.date}>
+            <g
+              key={d.date}
+              tabIndex={0}
+              aria-label={`${d.date}: open ${formatPrice.format(d.open)}, high ${formatPrice.format(d.high)}, low ${formatPrice.format(d.low)}, close ${formatPrice.format(d.close)}, volume ${Number(d.volume).toLocaleString()}`}
+              onMouseEnter={(event) => showCandleTooltip(event, d)}
+              onMouseMove={(event) => showCandleTooltip(event, d)}
+              onFocus={(event) => showCandleTooltip(event, d)}
+              onBlur={() => setHoveredCandle(null)}
+            >
+              <rect
+                x={p.l + step * i}
+                y={p.t}
+                width={step}
+                height={h - p.t - p.b}
+                fill="transparent"
+                pointerEvents="all"
+              />
               <rect
                 x={x - bw / 2}
                 y={h - p.b - vh}
@@ -1036,6 +1072,42 @@ function CandleChart({ data, symbol }) {
           {rows.at(-1)?.date?.slice(5)}
         </text>
       </svg>
+      {hoveredCandle && (
+        <div
+          className="candle-tooltip"
+          role="status"
+          style={{ left: tooltipPosition.x, top: tooltipPosition.y }}
+        >
+          <strong>
+            {new Date(`${hoveredCandle.date}T00:00:00Z`).toLocaleDateString(
+              undefined,
+              { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" },
+            )}
+          </strong>
+          <div className="candle-tooltip-row">
+            <span>Open</span><b>{formatPrice.format(hoveredCandle.open)}</b>
+          </div>
+          <div className="candle-tooltip-row">
+            <span>High</span><b>{formatPrice.format(hoveredCandle.high)}</b>
+          </div>
+          <div className="candle-tooltip-row">
+            <span>Low</span><b>{formatPrice.format(hoveredCandle.low)}</b>
+          </div>
+          <div className="candle-tooltip-row">
+            <span>Close</span><b>{formatPrice.format(hoveredCandle.close)}</b>
+          </div>
+          <div className="candle-tooltip-row">
+            <span>Volume</span><b>{Number(hoveredCandle.volume).toLocaleString()}</b>
+          </div>
+          <div className="candle-tooltip-row">
+            <span>Change</span>
+            <b className={hoveredCandle.close >= hoveredCandle.open ? "up" : "down"}>
+              {hoveredCandle.close >= hoveredCandle.open ? "+" : ""}
+              {(((hoveredCandle.close - hoveredCandle.open) / hoveredCandle.open) * 100).toFixed(2)}%
+            </b>
+          </div>
+        </div>
+      )}
       <div className="chart-legend">
         <span>
           <i className="green" /> Up
@@ -1046,7 +1118,7 @@ function CandleChart({ data, symbol }) {
         <span>
           <i className="volume-key" /> Volume
         </span>
-        <em>Daily OHLC · USD</em>
+        <em>Daily OHLC · {currency}</em>
       </div>
     </div>
   );
