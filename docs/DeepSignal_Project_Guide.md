@@ -100,11 +100,13 @@ flowchart LR
     end
 
     Hybrid --> Signal[Buy / Hold / Sell signal<br/>score · evidence · metadata]
-    XGB -. separate comparison .-> Evaluation
     History --> HMM[ANALYSIS MODEL · Gaussian HMM<br/>latent daily market regime]
     HMM --> Regime[Regime label · state probabilities<br/>not a direction vote]
     subgraph RESEARCH[WALK-FORWARD EVALUATION ONLY]
         Evaluation[Chronological train / validation / test]
+        Features --> Evaluation
+        API --> Evaluation
+        Evaluation --> XGB[Optional XGBoost comparison]
         Evaluation --> Adaptive[Adaptive weights<br/>validation Brier evidence]
         Evaluation --> Calibrate[Platt / isotonic calibration<br/>validation selection]
         Adaptive --> OOS[Out-of-sample signals]
@@ -126,8 +128,10 @@ flowchart LR
     Scheduler --> Storage
     API --> Storage[(Supabase REST / Postgres<br/>or local JSON fallback)]
     API --> Artifacts[(Local model_artifacts folder<br/>versioned fitted estimators and scalers)]
-    Hybrid --> Artifacts
-    Artifacts --> Hybrid
+    LSTM --> Artifacts
+    Artifacts --> LSTM
+    RF --> Artifacts
+    Artifacts --> RF
 
     classDef model fill:#173b67,stroke:#54a6ff,stroke-width:3px,color:#ffffff;
     classDef optional fill:#45315f,stroke:#c49aff,stroke-width:2px,color:#ffffff;
@@ -176,8 +180,8 @@ flowchart TB
     Forest -. matching estimator .-> Artifact
     Market --> Regime[Separate causal Gaussian HMM<br/>return · volatility · range · volume change]
     Regime --> RegimeUI[Dashboard regime label / state probabilities]
-    Prepare --> Eval[Offline expanding walk-forward evaluation<br/>final 20% holdout excluded from hybrid backtest]
-    Eval --> XGB[XGBoost comparison only]
+    Prepare --> Eval[Separate offline expanding walk-forward evaluation]
+    Eval --> XGB[Optional XGBoost comparison only]
     Eval --> Adaptive[Adaptive weights from prior validation]
     Eval --> Calibration[Platt / isotonic calibration + No Trade]
     Eval --> Backtest[Next-open portfolio simulation<br/>fees · slippage · long-only · terminal liquidation]
@@ -188,7 +192,7 @@ flowchart TB
     Report --> Store
 ```
 
-The request pipeline and research path are intentionally shown separately. Live prediction uses the fixed hybrid and does not fit validation-selected calibration or No Trade thresholds. Walk-forward reports select adaptive weights/calibration from earlier validation rows, then score later test rows; the production hybrid backtest excludes the final chronological holdout. The Gaussian HMM supplies dashboard regime context, not a direction probability.
+The request pipeline and research path are intentionally shown separately. Live prediction uses the fixed hybrid and does not fit validation-selected calibration or No Trade thresholds. Walk-forward reports select adaptive weights/calibration from earlier validation rows, then score later test rows; the production hybrid backtest excludes the final chronological holdout. The Gaussian HMM supplies dashboard regime context, not a direction probability. In the diagram, XGBoost is invoked as an optional evaluation comparison; it is not a live-hybrid input.
 
 ### Two distinct meanings of “saved”
 

@@ -361,62 +361,74 @@ class PDFDocument:
 
     def architecture(self):
         self.new_page()
-        self.heading(3, "System architecture — models and evaluation paths")
-        y = self.y
-        width = CONTENT_W
-        x = LEFT
-        self.diagram_box(x + 30, y, width - 60, 38, (246, 248, 252), (105, 122, 145),
-                         "Browser · React application", "Dashboard · Analysis · Backtest · Models · local signal history")
+        self.heading(3, "System architecture — live and research paths")
+        x, width, y = LEFT, CONTENT_W, self.y
+        neutral_fill, neutral_stroke = (246, 248, 252), (105, 122, 145)
+        self.diagram_box(x + 48, y, width - 96, 38, neutral_fill, neutral_stroke,
+                         "Browser · React application", "Dashboard · Analysis · Backtest · Models · browser-local preferences/history")
         self.arrow(PAGE_W / 2, y - 38, PAGE_W / 2, y - 49)
         y -= 54
-        self.diagram_box(x + 65, y, width - 130, 38, (246, 248, 252), (105, 122, 145),
-                         "Vite → FastAPI", "HTTP / JSON · frontend :5173 · backend :8000")
+        self.diagram_box(x + 48, y, width - 96, 38, neutral_fill, neutral_stroke,
+                         "Vite development proxy → FastAPI", "HTTP / JSON · frontend :5173 · backend :8000")
         self.arrow(PAGE_W / 2, y - 38, PAGE_W / 2, y - 49)
         y -= 54
-        self.diagram_box(x + 18, y, width - 36, 44, (246, 248, 252), (105, 122, 145),
-                         "Market / news inputs and preparation", "Yahoo daily OHLCV · current NewsAPI / Yahoo headlines · causal pandas features · SHA-256 provenance")
-        self.arrow(PAGE_W / 2, y - 44, PAGE_W / 2, y - 56)
-        y -= 62
+        self.diagram_box(x + 8, y, width - 16, 44, neutral_fill, neutral_stroke,
+                         "Provider data and preparation", "Yahoo daily OHLCV · optional NewsAPI / Yahoo headlines · pandas features · bounded process cache")
+        self.arrow(PAGE_W / 2, y - 44, PAGE_W / 2, y - 58)
+        y -= 66
 
-        group_h = 194
-        self.rect(x + 8, y - group_h, width - 16, group_h, (250, 252, 255), (160, 174, 194), 1.2)
-        self.text(PAGE_W / 2 - 123, y - 14, "LIVE SIGNAL MODELS + SEPARATE ANALYSIS", 8.0, "F2", (56, 76, 101))
-        gap = 12
-        card_w = (width - 50 - gap) / 2
-        left_x, right_x = x + 25, x + 25 + card_w + gap
-        card_h = 43
-        first_top, second_top, third_top = y - 25, y - 76, y - 127
-        blue = (42, 117, 196)
-        model_fill = (229, 241, 255)
-        self.diagram_box(left_x, first_top, card_w, card_h, model_fill, blue, "LSTM", "7-column sequence · P(up) · fixed weight 40%", (22, 62, 107), "TRAINED MODEL")
-        self.diagram_box(right_x, first_top, card_w, card_h, model_fill, blue, "Random Forest", "9 tabular features · P(up) · fixed weight 40%", (22, 62, 107), "TRAINED MODEL")
-        self.diagram_box(left_x, second_top, card_w, card_h, model_fill, blue, "FinBERT", "Current headline sentiment · mapped · 10%", (22, 62, 107), "PRETRAINED TEXT MODEL")
-        self.diagram_box(right_x, second_top, card_w, card_h, (245, 247, 251), (110, 129, 154), "Technical rules", "Alignment · momentum · RSI/MACD · 10%", (37, 57, 81), "DETERMINISTIC EVIDENCE")
-        self.diagram_box(left_x, third_top, card_w, card_h, model_fill, blue, "Gaussian HMM", "Causal latent regime · not a direction vote", (22, 62, 107), "SEPARATE ANALYSIS MODEL")
-        self.diagram_box(right_x, third_top, card_w, card_h, (244, 236, 252), (126, 82, 174), "XGBoost + SHAP", "Optional comparison / explanation · not hybrid votes", (94, 58, 133), "OPTIONAL")
-        self.arrow(PAGE_W / 2, y, PAGE_W / 2, y - 24)
-        hybrid_top = y - group_h - 14
-        self.arrow(PAGE_W / 2, y - group_h, PAGE_W / 2, hybrid_top - 2)
-        hybrid_w = width - 90
+        # Only these four component cards feed the production fixed-weight hybrid.
+        group_h = 84
+        self.rect(x + 4, y - group_h, width - 8, group_h, (250, 252, 255), (160, 174, 194), 1.2)
+        self.text(PAGE_W / 2 - 82, y - 14, "FOUR LIVE HYBRID INPUTS", 8.0, "F2", (56, 76, 101))
+        gap, card_w = 8, (width - 46) / 4
+        card_h, card_top = 47, y - 24
+        cards = [
+            ("LSTM", "7 inputs · P(up) · 40%", (229, 241, 255), (42, 117, 196)),
+            ("Random Forest", "9 inputs · P(up) · 40%", (229, 241, 255), (42, 117, 196)),
+            ("FinBERT", "Headline score · 10%", (229, 241, 255), (42, 117, 196)),
+            ("Technical rules", "Rule score · 10%", (245, 247, 251), (110, 129, 154)),
+        ]
+        centers = []
+        start_x = x + 19
+        for i, (title, detail, fill, stroke) in enumerate(cards):
+            bx = start_x + i * (card_w + gap)
+            self.diagram_box(bx, card_top, card_w, card_h, fill, stroke, title, detail, (25, 44, 69))
+            centers.append(bx + card_w / 2)
+        collector_y = y - group_h - 3
+        for center in centers:
+            self.line(center, card_top - card_h, center, collector_y, (76, 96, 121), 1.1)
+        self.line(centers[0], collector_y, centers[-1], collector_y, (76, 96, 121), 1.1)
+        hybrid_top = collector_y - 13
+        self.arrow(PAGE_W / 2, collector_y, PAGE_W / 2, hybrid_top)
+        hybrid_w = width - 96
         hybrid_x = x + (width - hybrid_w) / 2
         self.diagram_box(hybrid_x, hybrid_top, hybrid_w, 43, (222, 247, 236), (23, 133, 104),
-                         "Fixed weighted hybrid → signal", "40% LSTM + 40% RF + 10% mapped FinBERT + 10% technical evidence",
-                         (18, 105, 81), "ENSEMBLE OUTPUT")
-        y = hybrid_top - 57
-        self.diagram_box(x + 8, y, width - 16, 42, (244, 247, 251), (110, 129, 154),
-                         "Evaluation-only methods", "Expanding folds · adaptive validation weights · Platt/isotonic calibration · No Trade thresholds",
-                         (37, 57, 81), "NEVER FITTED BY LIVE PREDICTION")
-        self.arrow(hybrid_x + hybrid_w / 2, hybrid_top - 43, PAGE_W / 2, y + 2)
-        y -= 55
+                         "Versioned fixed hybrid → live signal", "40% LSTM + 40% forest + 10% mapped FinBERT + 10% technical evidence",
+                         (18, 105, 81), "LIVE PREDICTION")
+        y = hybrid_top - 58
+
+        # These are distinct analysis paths; they do not vote in the live hybrid.
+        gap, half = 14, (width - 14) / 2
+        self.diagram_box(x, y, half, 50, (229, 241, 255), (42, 117, 196),
+                         "Gaussian HMM", "Filtered regime-state probabilities", (22, 62, 107), "SEPARATE ANALYSIS")
+        self.diagram_box(x + half + gap, y, half, 50, (244, 236, 252), (126, 82, 174),
+                         "Offline evaluation", "Optional XGBoost · adaptive weights · calibration · No Trade", (94, 58, 133), "CHRONOLOGICAL VALIDATION")
+        self.text(LEFT + 10, y - 61, "Neither HMM nor offline evaluation votes in the live hybrid.",
+                  7.2, "F1", (78, 93, 113))
+        self.text(LEFT + 10, y - 72, "The hybrid backtest excludes the final chronological holdout.",
+                  7.2, "F1", (78, 93, 113))
+        y -= 82
         half = (width - 18) / 2
-        self.diagram_box(x, y, half, 42, (246, 248, 252), (105, 122, 145),
-                         "Result creation", "Next-open fills · fees/slippage · portfolio metrics · final hybrid holdout excluded", (25, 44, 69), "BACKTEST")
-        self.diagram_box(x + half + 18, y, half, 42, (248, 246, 239), (138, 120, 82),
-                         "Persistence and artifacts", "Supabase / local JSON · local versioned model files · browser localStorage", (91, 77, 49), "SEPARATE STORES")
-        self.arrow(PAGE_W / 2, y + 45, x + half / 2, y + 42)
-        self.arrow(PAGE_W / 2, y + 45, x + half + 18 + half / 2, y + 42)
-        self.text(LEFT + 12, y - 18, "Blue = predictive or regime model   Green = live fixed hybrid   Purple = optional comparison / evaluation method", 7.0, "F1", (78, 93, 113))
-        self.y = y - 31
+        self.diagram_box(x, y, half, 43, neutral_fill, neutral_stroke,
+                         "Backtest routes", "Technical rules or walk-forward hybrid · next-open fills · configured costs", (25, 44, 69), "API RESULTS")
+        self.diagram_box(x + half + 18, y, half, 43, (248, 246, 239), (138, 120, 82),
+                         "Persistence and artifacts", "Supabase / local JSON · local model files · browser localStorage", (91, 77, 49), "SEPARATE STORES")
+        self.text(LEFT + 10, y - 54, "A background thread refreshes daily bars at startup and at its configured interval.",
+                  7.0, "F1", (78, 93, 113))
+        self.text(LEFT + 10, y - 64, "Hosted storage is optional; bounded process-local caches reset on backend restart.",
+                  7.0, "F1", (78, 93, 113))
+        self.y = y - 77
 
     def prediction_pipeline(self):
         self.new_page()
