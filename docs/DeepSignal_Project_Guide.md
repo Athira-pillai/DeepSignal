@@ -28,7 +28,7 @@ This guide describes the application as it exists in this repository: its archit
 
 DeepSignal is a local full-stack web app. The browser provides the dashboard and analysis pages. A Python API fetches market data, engineers features, runs model components, combines their evidence, and returns a JSON result. The app can optionally use a hosted Supabase database for online history; without it, the backend writes supported records to local JSON files.
 
-**Implementation status:** The original Phase 0–9 plan is complete. The final Phase 9 report covers seven research experiments; the sentiment ablation is explicitly unavailable because no eligible point-in-time news archive was available. There is no Phase 10 in the original plan. Current evidence, limitations, and report links are in [the final experiment report](../research/real_data/phase9_final_experiment_matrix.md) and [machine-readable report](../research/real_data/phase9_final_experiment_matrix.json). The phase-by-phase work log is [CODEX_PROGRESS.md](../CODEX_PROGRESS.md).
+**Implementation status:** The planned implementation and research work is complete. The final report covers seven research experiments; the sentiment ablation was unavailable because no eligible point-in-time news archive was available. Current evidence, limitations, and report links are in [the final experiment report](../research/real_data/phase9_final_experiment_matrix.md) and [machine-readable report](../research/real_data/phase9_final_experiment_matrix.json). The implementation work log is [CODEX_PROGRESS.md](../CODEX_PROGRESS.md).
 
 ### Main capabilities
 
@@ -295,7 +295,7 @@ The prediction path is orchestrated in `backend/main.py` by `build_prediction`. 
 
 `download_history` asks yfinance for auto-adjusted daily bars and normalizes the date column to UTC before removing the timezone for internal calculations. The returned frame contains date, open, high, low, close, and volume. The input fingerprint is SHA-256 over those ordered bar values and is attached to the prediction so the exact source window can be identified later. `indicators` derives rolling and exponential calculations from close and volume. Early rows naturally lack some rolling values; the model paths remove rows missing required inputs. Infinite percentage changes are converted to missing values rather than passed to estimators.
 
-The label is aligned to the row that makes the decision: `target[t] = 1` if `close[t+1] > close[t]`; otherwise it is 0 (down or unchanged). Thus the feature vector at row *t* contains information available through that close, while its label refers to the next trading observation. This is why the most recent row can be scored for inference but cannot contribute a known label. The live backend uses the current timestamp-filtered headline aggregate as a request-level sentiment value; it does not reconstruct historical news for every training row. See the Phase 6 report for provider/terms assessment and unknown historical coverage.
+The label is aligned to the row that makes the decision: `target[t] = 1` if `close[t+1] > close[t]`; otherwise it is 0 (down or unchanged). Thus the feature vector at row *t* contains information available through that close, while its label refers to the next trading observation. This is why the most recent row can be scored for inference but cannot contribute a known label. The live backend uses the current timestamp-filtered headline aggregate as a request-level sentiment value; it does not reconstruct historical news for every training row. See the historical news assessment for provider/terms assessment and unknown historical coverage.
 
 There are two model input matrices because the model families consume different representations:
 
@@ -348,9 +348,9 @@ The application produces several different kinds of “result,” and they have 
 3. **Direction metrics:** `GET /api/evaluate/{symbol}` or `tools/run_real_evaluation.py` partitions data chronologically, builds expanding development folds and a final 20% holdout, fits model transforms on permitted training data, predicts common dates, and only then compares predictions with labels to calculate accuracy, balanced accuracy, ROC-AUC, Brier, reliability, confusion counts, and fold summaries. Optional XGBoost is included only when enabled. Historical sentiment is neutral.
 4. **Portfolio metrics:** the technical backtest creates rule signals after close; the hybrid walk-forward backtest creates model signals on development test folds. Both pass signals and raw bars to `backend/backtesting.py`, which executes at the next available open, applies transaction cost and adverse slippage, tracks long-only cash/shares/equity, and liquidates at the end. Buy-and-hold/cash baselines use the same interval/cost convention. Final-holdout rows are not traded by the hybrid report.
 5. **Adaptive/calibration/No Trade experiments:** for each upcoming test fold, component weights and calibrator/threshold choices are derived only from earlier validation observations, recorded with their selection scope and fallback status, then frozen for test scoring. Metrics are calculated on those later test rows. These experiment outputs do not change live prediction behavior.
-6. **Phase 9 summary and figures:** `tools/build_phase9_report.py` reads retained experiment JSON, validates that the paired E4 runs share the same input hash/dates and that the retained CSV matches its recorded fingerprint, then assembles E1–E7 tables, Markdown/JSON audit, confusion matrices, reliability plot, and cost-adjusted equity curves. E5 is reported as unavailable rather than fabricated because an eligible point-in-time news archive was absent.
+6. **Final summary and figures:** `tools/build_phase9_report.py` reads retained experiment JSON, validates that the paired E4 runs share the same input hash/dates and that the retained CSV matches its recorded fingerprint, then assembles E1–E7 tables, Markdown/JSON audit, confusion matrices, reliability plot, and cost-adjusted equity curves. E5 is reported as unavailable rather than fabricated because an eligible point-in-time news archive was absent.
 
-Every metric is therefore conditional on its data window, ticker set, model availability, fold plan, and cost assumptions. The report files and machine-readable audits linked in this guide are the source for the displayed Phase 9 values; the dashboard does not generate those multi-fold research summary figures at runtime.
+Every metric is therefore conditional on its data window, ticker set, model availability, fold plan, and cost assumptions. The report files and machine-readable audits linked in this guide are the source for the displayed final report values; the dashboard does not generate those multi-fold research summary figures at runtime.
 
 ### LSTM
 
@@ -457,7 +457,7 @@ Loading an artifact does not force its use for a different ticker/data/configura
 
 Evaluation fits the LSTM scaler using only the earlier 60% training rows. Historical point-in-time news is not available, so evaluation explicitly uses neutral sentiment on all historical hybrid test rows. This means it does **not** validate the live news/FinBERT contribution. The models share final test dates, but this is one final holdout, not repeated rolling retraining of every component.
 
-The retained Phase 0 snapshot in [the baseline report](../research/baseline/PHASE_0_BASELINE.md) is historical evidence from existing local artifacts dated 2026-10-24, not a rerun of today's evaluator. Its saved evaluation artifact contains only previous-direction and Random Forest results; it has no LSTM or hybrid metrics. Its saved technical-backtest record also has a legacy summary field named `hybrid` that duplicates the technical strategy. Use the explicitly named production-hybrid walk-forward endpoint and Phase 1–9 reports when referring to actual hybrid results. No frontend lint or type-check command is configured; the documented build command is available for production compilation.
+The retained baseline snapshot in [the baseline report](../research/baseline/PHASE_0_BASELINE.md) is historical evidence from existing local artifacts dated 2026-10-24, not a rerun of today's evaluator. Its saved evaluation artifact contains only previous-direction and Random Forest results; it has no LSTM or hybrid metrics. Its saved technical-backtest record also has a legacy summary field named `hybrid` that duplicates the technical strategy. Use the explicitly named production-hybrid walk-forward endpoint and supporting evaluation reports when referring to actual hybrid results. No frontend lint or type-check command is configured; the documented build command is available for production compilation.
 
 ### Production-hybrid walk-forward evaluation
 
@@ -477,7 +477,7 @@ The experimental No Trade filter uses validation-selected neutral-band and compo
 
 ### Historical-news alignment gate
 
-Live provider articles must have a timezone-aware publication timestamp at or before the request cutoff and a ticker/query relevance match. Duplicates are removed using canonical article references. Historical alignment helpers use the NYSE 16:00 `America/New_York` close with daylight-saving handling and report coverage only when an eligible corpus is supplied. NewsAPI account-plan/history rights were not verified, Yahoo search is not a historical archive, and no local licensed corpus was present. Phase 6 therefore implemented strict live filtering and documented unknown historical coverage; it did not run a sentiment ablation or claim FinBERT's historical value. See [the Phase 6 report](../research/real_data/phase6_news_alignment.md).
+Live provider articles must have a timezone-aware publication timestamp at or before the request cutoff and a ticker/query relevance match. Duplicates are removed using canonical article references. Historical alignment helpers use the NYSE 16:00 `America/New_York` close with daylight-saving handling and report coverage only when an eligible corpus is supplied. NewsAPI account-plan/history rights were not verified, Yahoo search is not a historical archive, and no local licensed corpus was present. The implementation therefore applies strict live filtering and documented unknown historical coverage; it did not run a sentiment ablation or claim FinBERT's historical value. See [the historical news assessment](../research/real_data/phase6_news_alignment.md).
 
 ### Hidden Markov market regime
 
@@ -485,7 +485,7 @@ Live provider articles must have a timezone-aware publication timestamp at or be
 
 The response provides the descriptive regime label, state probabilities, training/validation windows, model version, selected state count and scores, data fingerprint, and recent history. Labels use training-window average return and volatility to describe higher-return, lower-return/high-volatility or lower-volatility, and remaining states; they are not ground truth, calibrated return probabilities, or profit probabilities. If data are short or invalid, fitting fails to converge, or `pomegranate` is unavailable, the API returns an explicit unavailable status and fallback reason. The dashboard distinguishes the inference cutoff from retrieval time and labels the data as daily.
 
-`tools/run_regime_evaluation.py` reports the same fixed-hybrid walk-forward predictions pooled and grouped by their causal inferred regimes; the final holdout is excluded. This is descriptive stratification, not a causal ablation or evidence that regime information improves predictions. See [the Phase 3 report](../research/real_data/phase3_regime_evaluation.md) and its fold-level [JSON audit](../research/real_data/phase3_regime_evaluation.json).
+`tools/run_regime_evaluation.py` reports the same fixed-hybrid walk-forward predictions pooled and grouped by their causal inferred regimes; the final holdout is excluded. This is descriptive stratification, not a causal ablation or evidence that regime information improves predictions. See [the regime evaluation report](../research/real_data/phase3_regime_evaluation.md) and its fold-level [JSON audit](../research/real_data/phase3_regime_evaluation.json).
 
 ### Rule-based historical backtest
 
@@ -511,24 +511,24 @@ The report compares the strategy with buy-and-hold (including modeled costs) and
 
 Metrics depend on provider data, window, thresholds, costs, and implementation assumptions. Past simulation is not a promise of future results.
 
-### Phase-by-phase work and final research evidence
+### Completed implementation and research evidence
 
-The original implementation plan's nine phases are complete. The final report is complete with one conditional exception: E5 did not run because an eligible point-in-time historical news archive was unavailable. The plan contains no Phase 10.
+The planned implementation and research work is complete, with one conditional exception: E5 was not run because an eligible point-in-time historical news archive was unavailable.
 
-| Phase | Work completed | Main evidence |
-|---|---|---|
-| 0 | Repository inspection and code-path map (now incorporated in Sections 2 and 11), preserved baseline, safe branch checkpoint, and baseline suite/build. | [System architecture](#2-system-architecture), [project layout](#11-project-layout), [baseline report](../research/baseline/PHASE_0_BASELINE.md) |
-| 1 | Shared chronological direction evaluation with previous-direction, RF, LSTM, hybrid, fold audits, and separate final holdout. | [Walk-forward report](../research/real_data/PHASE_1_REAL_DATA_EVALUATION.md) |
-| 2 | Production-hybrid walk-forward signal backtest with next-open execution, costs, model components, buy-and-hold, and cash baselines. | [Hybrid backtest](../research/real_data/PHASE_2_HYBRID_BACKTEST.md) |
-| 3 | Causal Gaussian-HMM regime fitting, train-window state mapping, and descriptive regime-stratified evaluation. | [Regime report](../research/real_data/phase3_regime_evaluation.md) |
-| 4 | Fixed versus validation-selected adaptive hybrid weights on shared dates. | [Adaptive report](../research/real_data/phase4_adaptive_evaluation.md) |
-| 5 | Validation-only Platt/isotonic calibration and No Trade threshold evaluation. | [Calibration report](../research/real_data/phase5_calibration_evaluation.md) |
-| 6 | Strict live article cutoff/relevance/deduplication and a historical-news availability assessment; no sentiment ablation. | [News report](../research/real_data/phase6_news_alignment.md) |
-| 7 | Optional XGBoost against baseline models across five symbols and four development folds. | [XGBoost report](../research/real_data/phase7_xgboost_evaluation.md) |
-| 8 | Compatible API/persistence fields, explicit live calibration/No Trade availability, regime/reliability/contribution displays, adaptive audit, and per-fold comparisons. | [Implementation log](../CODEX_PROGRESS.md#phase-8-api-persistence-and-frontend-integration) |
-| 9 | Consolidated E1–E7 matrix, exact-data regime ablation, figures, and limitations. | [Final Markdown report](../research/real_data/phase9_final_experiment_matrix.md), [JSON report](../research/real_data/phase9_final_experiment_matrix.json) |
+| Work completed | Main evidence |
+|---|---|
+| Repository inspection and code-path map (now incorporated in Sections 2 and 11), preserved baseline, safe branch checkpoint, and baseline suite/build. | [System architecture](#2-system-architecture), [project layout](#11-project-layout), [baseline report](../research/baseline/PHASE_0_BASELINE.md) |
+| Shared chronological direction evaluation with previous-direction, RF, LSTM, hybrid, fold audits, and separate final holdout. | [Walk-forward report](../research/real_data/PHASE_1_REAL_DATA_EVALUATION.md) |
+| Production-hybrid walk-forward signal backtest with next-open execution, costs, model components, buy-and-hold, and cash baselines. | [Hybrid backtest](../research/real_data/PHASE_2_HYBRID_BACKTEST.md) |
+| Causal Gaussian-HMM regime fitting, train-window state mapping, and descriptive regime-stratified evaluation. | [Regime report](../research/real_data/phase3_regime_evaluation.md) |
+| Fixed versus validation-selected adaptive hybrid weights on shared dates. | [Adaptive report](../research/real_data/phase4_adaptive_evaluation.md) |
+| Validation-only Platt/isotonic calibration and No Trade threshold evaluation. | [Calibration report](../research/real_data/phase5_calibration_evaluation.md) |
+| Strict live article cutoff/relevance/deduplication and a historical-news availability assessment; no sentiment ablation. | [News report](../research/real_data/phase6_news_alignment.md) |
+| Optional XGBoost against baseline models across five symbols and four development folds. | [XGBoost report](../research/real_data/phase7_xgboost_evaluation.md) |
+| Compatible API/persistence fields, explicit live calibration/No Trade availability, regime/reliability/contribution displays, adaptive audit, and per-fold comparisons. | [Implementation log](../CODEX_PROGRESS.md#phase-8-api-persistence-and-frontend-integration) |
+| Consolidated E1–E7 matrix, exact-data regime ablation, figures, and limitations. | [Final Markdown report](../research/real_data/phase9_final_experiment_matrix.md), [JSON report](../research/real_data/phase9_final_experiment_matrix.json) |
 
-The Phase 9 E1 walk-forward mean metrics below are equal-ticker means across AAPL, MSFT, JPM, JNJ, and XOM, each with four expanding folds. The later 20% holdout is excluded from these fold means. The earlier Phase 1 final-holdout dates were evaluated again during Phase 7, so holdout results are exploratory, not fresh confirmation.
+The E1 walk-forward mean metrics below are equal-ticker means across AAPL, MSFT, JPM, JNJ, and XOM, each with four expanding folds. The later 20% holdout is excluded from these fold means. The final-holdout dates from the initial evaluation were reused in the XGBoost comparison, so holdout results are exploratory, not fresh confirmation.
 
 | E1 model | Accuracy | Balanced accuracy | ROC-AUC | Brier score |
 |---|---:|---:|---:|---:|
@@ -718,7 +718,7 @@ DeepSignal/
     |-- run_regime_evaluation.py     Report predictions grouped by causal HMM regime
     |-- run_adaptive_evaluation.py   Reproduce fixed/adaptive/regime ablations
     |-- run_calibration_evaluation.py Evaluate calibration and No Trade thresholds
-    |-- build_phase9_report.py       Rebuild the Phase 9 matrix and SVG figures
+    |-- build_phase9_report.py       Rebuild the final experiment matrix and SVG figures
     `-- build_project_guide_pdf.py   Rebuild the guide PDF with Python only
 ```
 
@@ -785,7 +785,7 @@ The tree above is the quick map. This inventory describes the maintained source 
 
 The focused tests also exercise evaluation through its shared hybrid comparison logic; there is no separate `test_evaluation.py` file. The full suite is invoked from the repository root with `python -m unittest discover -s backend/tests -v`.
 
-At Phase 9 completion, the full backend suite reported **62 passing tests**. The frontend production build passed with 2,211 modules during Phase 8. Phase 9 report generation, JSON assertions, SVG XML parsing, and `git diff --check` passed. There is no configured lint or frontend type-check script. These are the latest recorded checks; they are not run automatically when the app starts.
+At completion of the final research report, the full backend suite reported **62 passing tests**. The frontend production build passed with 2,211 modules during API and frontend integration. Final report generation, JSON assertions, SVG XML parsing, and `git diff --check` passed. There is no configured lint or frontend type-check script. These are the latest recorded checks; they are not run automatically when the app starts.
 
 #### Frontend files
 
@@ -810,11 +810,11 @@ At Phase 9 completion, the full backend suite reported **62 passing tests**. The
 | `tools/run_regime_evaluation.py` | Evaluates fixed-hybrid predictions grouped by causal HMM regime; can regenerate Markdown from saved JSON. |
 | `tools/run_adaptive_evaluation.py` | Runs fixed/adaptive and paired regime-selection ablations; accepts a retained OHLCV CSV for exact paired input. |
 | `tools/run_calibration_evaluation.py` | Runs validation-selected calibration and No Trade evaluation on walk-forward predictions. |
-| `tools/run_news_alignment_report.py` | Regenerates the Phase 6 provider-availability/terms report without fetching or retaining headlines. |
-| `tools/build_phase9_report.py` | Validates paired E4 data/date identity and builds the Phase 9 Markdown/JSON matrix and dependency-free SVG figures from retained report artifacts. |
-| `research/real_data/phase9_final_experiment_matrix.md` | Final Phase 9 summary covering E1–E7, measured findings, unavailable E5 sentiment ablation, limitations, and reproduction instructions. |
+| `tools/run_news_alignment_report.py` | Regenerates the historical news provider-availability/terms report without fetching or retaining headlines. |
+| `tools/build_phase9_report.py` | Validates paired E4 data/date identity and builds the final Markdown/JSON matrix and dependency-free SVG figures from retained report artifacts. |
+| `research/real_data/phase9_final_experiment_matrix.md` | Final research summary covering E1–E7, measured findings, unavailable E5 sentiment ablation, limitations, and reproduction instructions. |
 | `research/real_data/phase9_final_experiment_matrix.json` | Machine-readable final metrics, per-ticker/per-fold evidence, run IDs, hashes, versions, and artifact references. |
-| `research/real_data/phase{1..7}_*.json` and matching Markdown reports | Retained phase-specific evaluation, hybrid backtest, regime/adaptive/calibration findings, news availability, and optional XGBoost results. |
+| `research/real_data/phase{1..7}_*.json` and matching Markdown reports | Supporting evaluation, hybrid backtest, regime/adaptive/calibration findings, news availability, and optional XGBoost results. |
 | `research/real_data/phase9_*.svg`, `phase9_e4_aapl_prices.csv`, and paired E4 JSON/Markdown | Final report figures and retained paired input/audits used to reproduce and verify the regime-weight comparison. |
 | `research/baseline/PHASE_0_BASELINE.md` | Preserved inspection of the original local evaluation, prediction, and technical-backtest artifacts; it records their dates, hashes, and important legacy-field limitations. |
 
@@ -989,14 +989,14 @@ These are material distinctions to state in demonstrations and reports:
 4. **Historical news alignment:** Live headline sentiment is filtered at the request cutoff, but current provider searches do not constitute a verified historical archive. NewsAPI history depends on the active plan and its terms restrict archive use; Yahoo completeness/retention rights were not verified. The dedicated historical hybrid evaluation uses neutral news sentiment; see `research/real_data/phase6_news_alignment.md`.
 5. **Research sample size:** E1 covers five selected symbols across four walk-forward folds. E2–E7 use one AAPL window and four folds. These samples do not represent a broad security universe or all market regimes; no confidence intervals or significance tests were run.
 6. **Live LSTM validation:** The live scaler is fit on the feature window before its internal validation split. Dedicated evaluation fits the scaler on training rows only; prefer that report when discussing out-of-sample model assessment.
-7. **Backtest assumptions and outcomes:** The technical endpoint tests its deterministic technical strategy; the hybrid endpoint evaluates production hybrid signals on development walk-forward folds and excludes the final holdout. Both simplify costs, fractional shares, fills, and long-only sizing. In Phase 9 the adaptive hybrid underperformed the fixed hybrid in the AAPL sample, regime-specific weights made no aggregate portfolio difference, and No Trade reduced drawdown while lowering return and Sharpe. These are descriptive historical results, not strategy guarantees.
-8. **Calibration and No Trade:** Phase 5 calibration worsened pooled fixed-hybrid Brier from 0.2532 raw to 0.2676 calibrated. Calibration and No Trade remain evaluation-only; the live prediction route reports them unavailable because it does not fit a point-in-time validation calibrator or abstention threshold.
+7. **Backtest assumptions and outcomes:** The technical endpoint tests its deterministic technical strategy; the hybrid endpoint evaluates production hybrid signals on development walk-forward folds and excludes the final holdout. Both simplify costs, fractional shares, fills, and long-only sizing. In the final report the adaptive hybrid underperformed the fixed hybrid in the AAPL sample, regime-specific weights made no aggregate portfolio difference, and No Trade reduced drawdown while lowering return and Sharpe. These are descriptive historical results, not strategy guarantees.
+8. **Calibration and No Trade:** Calibration worsened pooled fixed-hybrid Brier from 0.2532 raw to 0.2676 calibrated. Calibration and No Trade remain evaluation-only; the live prediction route reports them unavailable because it does not fit a point-in-time validation calibrator or abstention threshold.
 9. **News ablation:** E5 was not run because no eligible, appropriately permitted point-in-time historical archive was supplied. Historical FinBERT contribution remains neutral in research rows; its incremental value is unknown.
 10. **Persistence boundaries:** Artifact binaries remain local. Database rows record model-version identifiers but do not automatically move artifact files to Supabase. Browser signals are not automatically imported to backend history.
 11. **Prototype operations:** Scheduler/cache are in-process and local to one backend instance. There is no distributed worker, job queue, authentication, or deployment-grade monitoring.
 12. **Optional dependencies/providers:** XGBoost/SHAP failures are tolerated, FinBERT can be unavailable, and news or company metadata can be missing without stopping all core features.
 
-The original nine-phase implementation plan is complete; it defines no Phase 10. Further research should be gated on (a) a permitted point-in-time news archive for the E5 ablation, (b) a predeclared, later untouched confirmation window, and (c) a wider predeclared ticker universe with repeated folds. Improve execution realism and deployment security before treating the prototype as a production service. More model complexity alone does not establish model quality.
+The planned implementation and research work is complete. Further research should be gated on (a) a permitted point-in-time news archive for the E5 ablation, (b) a predeclared, later untouched confirmation window, and (c) a wider predeclared ticker universe with repeated folds. Improve execution realism and deployment security before treating the prototype as a production service. More model complexity alone does not establish model quality.
 
 ## 17. Glossary
 
